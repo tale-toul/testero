@@ -20,6 +20,7 @@ func main() {
 	var partScheme partCollection
 	partScheme.partSizes = []uint64{256000, 1048576, 4194304, 16777216, 67108864}
 	partScheme.partAmmount = make([]uint64, len(partScheme.partSizes))
+	partScheme.partLists = make([]*apart, len(partScheme.partSizes))
 
 	//Set the high limit for the total size to request
 	fmem := freeRam()
@@ -37,8 +38,11 @@ func main() {
 		}
 		fmt.Printf("Total size reserved: %d\n", semiTotal)
 	}
-	ar256 := make([]byte, partScheme.partSizes[4])
-	fillPart(ar256)
+	//Create the actual parts
+	createParts(&partScheme)
+	partScheme.crawl()
+	//fmt.Scanln()
+
 	/*
 		for _, value := range ar256 {
 			fmt.Printf("%c",value)
@@ -56,7 +60,47 @@ type partCollection struct {
 	partSizes []uint64
 	//Amount of each of the parts
 	partAmmount []uint64
+	//Lists of actual parts with data
+	partLists []*apart
 }
+
+//Counts the number of elements for a particular size
+func (pc partCollection) countPS (size uint64) (int) {
+	var count int = 0
+	for index,value := range pc.partSizes {
+		if size == value {
+			var pntP *apart = pc.partLists[index]
+			for pntP != nil {
+				count++
+				pntP = pntP.next
+			}
+		}
+	}
+	return count
+}
+
+//
+func (pc partCollection) crawl() {
+	fmt.Printf("Crawling the data\n")
+	fmt.Printf("pc.partSizes: %v\n", pc.partSizes)
+	fmt.Printf("pc.partLists: %v\n", pc.partLists)
+	for index,_ := range pc.partSizes {
+		p := pc.partLists[index]
+		x := 1
+		for p != nil {
+			fmt.Printf("#%d Element size: %d\n",x,len(p.data))
+			p=p.next
+			x++
+		}
+	}
+}
+//Defines the component which holds the data assigned to it, and a pointer to the next one
+type apart struct {
+	data []byte
+	next *apart
+}
+
+
 
 // Returns the number of bytes of free RAM memory available in the system
 func freeRam() uint64 {
@@ -117,3 +161,34 @@ func fillPart(part []byte) {
 		part[x] = byte(rand.Intn(95) + 32)
 	}
 }
+
+//Create the expected parts, or delete if there are more parts than should from privious runs
+func createParts(ptS *partCollection) {
+	var pap *apart 
+	for index,value := range ptS.partSizes {
+		desirednumParts := ptS.partAmmount[index]
+		pap = ptS.partLists[index]
+		if pap == nil && desirednumParts > 0 { //First element
+			var newpart apart
+			newpart.data = make([]byte,value) 
+			fillPart(newpart.data)
+			ptS.partLists[index] = &newpart
+			pap = &newpart
+		}
+		for i:=uint64(1); i<desirednumParts; i++ {
+			if pap.next == nil {  
+				var newpart apart
+				newpart.data = make([]byte,value) 
+				fillPart(newpart.data)
+				pap.next = &newpart
+			}			
+			if pap != nil {
+				pap = pap.next
+			}
+		}		
+	}
+	if pap !=nil {
+		pap.next = nil
+	}
+}
+
