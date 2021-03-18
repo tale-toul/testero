@@ -1,23 +1,26 @@
 # TESTERO
-Testero is a simple webserver application written in go to test resource consumption.  
-The application is intended to run as a containerized service in a kubernetes cluster, but it can also be run directly in a host, as a normal unpriviledged user.
+Testero is a simple webserver application written in go to test resource consumption in a running system.  
+
+The application is intended to run as a containerized service in a kubernetes cluster, but it can also be run directly from the terminal in a host.
+
+The user running the application does not require any special privileges.
 
 ## RUNNING TESTERO
-Get the code and use the _go_ compiler to run the testero.go main file:
+Get the code and use the _go_ compiler to execute the testero.go main file:
 
 ```shell
 $ go run testero.go
 ```
-While the program is running the terminal from which it was started is blocked.  To stop the program simply press __CTRL-C__ or kill the process from another terminal.
+While the program is running, the terminal from which it was started is blocked.  To stop the program simply press __CTRL-C__ or kill the process from another terminal.
 
-The application support no starting parameters at the moment.
+The application does not support any starting parameters at the moment.
 
-The web service listens on localhost, port 8080
+The web service listens on localhost, port 8080 (127.0.0.1:8080)
 
 ## API ENDPOINTS
 The web service publishes the following API endpoints
 
-* __/api/mem/add__ (parameter __size=<number of bytes>__).  Sending a GET request to this endpoint will result in the allocation of the specified number of bytes in memory.
+* __/api/mem/add__ (parameter __size=number of bytes__).  Sending a GET request to this endpoint will result in the allocation of the specified number of bytes in memory.
 ```shell
 $ curl http://localhost:8080/api/mem/add?size=256000
 Data added
