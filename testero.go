@@ -9,9 +9,14 @@ import (
 	"syscall"
 )
 
+//Data structure with actual part definitions and data
 var partScheme partmem.PartCollection
+//Lock to make sure there is no concurrency problems
+var lock chan struct{}
 
 func main() {
+	lock = make(chan struct{},1)
+	freeLock()
 	partScheme = partmem.NewpC()
 	http.HandleFunc("/api/mem/add", addMem)
 	http.HandleFunc("/api/mem/getdef", getDefMem)
@@ -19,16 +24,40 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
+//Free the concurrency lock
+func freeLock() {
+	lock <- struct{}{}
+}
+
+//Attemp to get hold of the lock
+func getLock() (string, bool) {
+	select {
+		case <-lock:
+			return "",true
+		default:
+			//Lock not available return
+			return	fmt.Sprintf("Server busy, try again later\n"), false
+	}
+
+}
+//Compute and create the parts for the ammount of memory requested
 func addMem(writer http.ResponseWriter, request *http.Request) {
+	lmsg,islav := getLock()
+	if !islav {
+		fmt.Fprintf(writer,"%s",lmsg)
+		return
+	}
+	defer freeLock() //Make sure the lock is released even if error occur
 	bsm := request.URL.Query().Get("size")
 	var sm uint64
 	var err error
 	if bsm != "" {
 		sm, err = strconv.ParseUint(bsm, 10, 64)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Fprintf(writer,"Could not get size: %s\n",err.Error())
+			return
 		}
-	} else {
+	} else {  //No size specified
 		fmt.Fprintf(writer, "No data size specified\n")
 		return
 	}
@@ -40,7 +69,8 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 	//The result is stored in partScheme
 	err = partmem.DefineParts(sm, fmem, &partScheme)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Fprintf(writer,"Could not compute mem parts: %s\n",err.Error())
+		return
 	}
 
 	//Create the actual parts
@@ -51,12 +81,24 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 
 //Request the definition of parts
 func getDefMem(writer http.ResponseWriter, request *http.Request) {
+	lmsg,islav := getLock()
+	if !islav {
+		fmt.Fprintf(writer,"%s",lmsg)
+		return
+	}
+	defer freeLock() //Make sure the lock is released even if error occur
 	mensj := partmem.GetDefParts(&partScheme)
 	fmt.Fprintf(writer, mensj)
 }
 
 //Request the actual definition of parts created
 func getActMem(writer http.ResponseWriter, request *http.Request) {
+	lmsg,islav := getLock()
+	if !islav {
+		fmt.Fprintf(writer,"%s",lmsg)
+		return
+	}
+	defer freeLock() //Make sure the lock is released even if error occur
 	mensj := partScheme.GetActParts()
 	fmt.Fprintf(writer, mensj)
 }
