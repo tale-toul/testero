@@ -5,26 +5,41 @@ import (
 	"github.com/tale-toul/testero/partmem"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"syscall"
 )
 
 //Data structure with actual part definitions and data
 var partScheme partmem.PartCollection
-//Lock to make sure there is no concurrency problems
+//Lock buffered, to make sure there is no concurrency problems
 var lock chan struct{}
+
+//Environment variable to set the limit for request to add data into memory.  In bytes
+var HIGHMEMLIM uint64
 
 func main() {
 	lock = make(chan struct{},1)
-	freeLock()
+	lock <- struct{}{}
 	partScheme = partmem.NewpC()
+
+	//Attempt to get the value for memory limit from HIGHMEMLIM environment variable
+	var herr error
+	hmeml := os.Getenv("HIGHMEMLIM")
+	if hmeml != "" {
+		HIGHMEMLIM, herr = strconv.ParseUint(hmeml, 10, 64)
+		if herr != nil {
+			log.Printf("Error: Cannot convert HIGHMEMLIM environment var. into number. HIGHMEMLIM=%s.  Default value will be used",hmeml)
+		}
+	}
+
 	http.HandleFunc("/api/mem/add", addMem)
 	http.HandleFunc("/api/mem/getdef", getDefMem)
 	http.HandleFunc("/api/mem/getact", getActMem)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-//Free the concurrency lock
+//Free the concurrency lock. It's a function so it can be deferred
 func freeLock() {
 	lock <- struct{}{}
 }
@@ -43,13 +58,13 @@ func getLock() (string, bool) {
 //Compute and create the parts for the ammount of memory requested
 func addMem(writer http.ResponseWriter, request *http.Request) {
 	lmsg,islav := getLock()
-	if !islav {
+	if !islav { //Lock not available
 		fmt.Fprintf(writer,"%s",lmsg)
 		return
 	}
-	defer freeLock() //Make sure the lock is released even if error occur
+	defer freeLock() //Make sure the lock is released even if errors occur
 	bsm := request.URL.Query().Get("size")
-	var sm uint64
+	var sm uint64 //Requested size in bytes
 	var err error
 	if bsm != "" {
 		sm, err = strconv.ParseUint(bsm, 10, 64)
@@ -63,11 +78,13 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 	}
 
 	//Set the high limit for the total size to request
-	fmem := freeRam()
-
+	if HIGHMEMLIM == 0 { //Not defined
+		HIGHMEMLIM = freeRam()
+	}
+	
 	//Compute the number of parts of each size to accomodate the total size.
 	//The result is stored in partScheme
-	err = partmem.DefineParts(sm, fmem, &partScheme)
+	err = partmem.DefineParts(sm, HIGHMEMLIM, &partScheme)
 	if err != nil {
 		fmt.Fprintf(writer,"Could not compute mem parts: %s\n",err.Error())
 		return
@@ -82,7 +99,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 //Request the definition of parts
 func getDefMem(writer http.ResponseWriter, request *http.Request) {
 	lmsg,islav := getLock()
-	if !islav {
+	if !islav { //Lock not available
 		fmt.Fprintf(writer,"%s",lmsg)
 		return
 	}
@@ -94,7 +111,7 @@ func getDefMem(writer http.ResponseWriter, request *http.Request) {
 //Request the actual definition of parts created
 func getActMem(writer http.ResponseWriter, request *http.Request) {
 	lmsg,islav := getLock()
-	if !islav {
+	if !islav { //Lock not available
 		fmt.Fprintf(writer,"%s",lmsg)
 		return
 	}
