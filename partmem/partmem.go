@@ -39,7 +39,7 @@ func (pc PartCollection) GetActParts() string {
 		}
 		mensj += fmt.Sprintf("Count: %d\n", count)
 	}
-	mensj += fmt.Sprintf("Total size: %d",totalSize)
+	mensj += fmt.Sprintf("Total size: %d\n",totalSize)
 	return mensj
 }
 
