@@ -93,7 +93,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 	//Create the actual parts
 	fmt.Fprintf(writer, partmem.CreateParts(&partScheme))
 
-	fmt.Fprintf(writer, "Data added\n")
+	fmt.Fprintf(writer, "Memory data updated\n")
 }
 
 //Request the definition of parts

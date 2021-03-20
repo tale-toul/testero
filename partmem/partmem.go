@@ -28,15 +28,18 @@ type PartCollection struct {
 //Computes the actual number of parts and its sizes
 func (pc PartCollection) GetActParts() string {
 	var mensj string
+	var totalSize uint64
 	for index, value := range pc.partLists {
 		count := 0 
 		mensj += fmt.Sprintf("Parts of size: %d, ", pc.partSizes[index])
 		for value != nil {
 			count++
+			totalSize += uint64(len(value.data))
 			value = value.next
 		}
 		mensj += fmt.Sprintf("Count: %d\n", count)
 	}
+	mensj += fmt.Sprintf("Total size: %d",totalSize)
 	return mensj
 }
 
@@ -74,7 +77,7 @@ func DefineParts(tsize uint64, hilimit uint64, ptS *PartCollection) error {
 	var nparts, remain uint64
 
 	if tsize > hilimit || tsize == 0 {
-		return fmt.Errorf("Invalid total size %d.  High limit is %d", tsize, hilimit)
+		return fmt.Errorf("Invalid total size %d.  High limit is %d bytes.", tsize, hilimit)
 	}
 	for index, psize := range ptS.partSizes {
 		nparts = tsize / psize
@@ -164,6 +167,6 @@ func GetDefParts (pS *PartCollection) string {
 		semiTotal += value * pS.partAmmount[index]
 		rst += fmt.Sprintf("Boxes of size: %d, count: %d, total size: %d\n", value, pS.partAmmount[index], value*pS.partAmmount[index])
 	}
-	rst += fmt.Sprintf("Total size reserved: %d\n", semiTotal)
+	rst += fmt.Sprintf("Total size reserved: %d bytes.\n", semiTotal)
 	return rst
 }
