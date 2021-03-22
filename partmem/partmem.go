@@ -2,6 +2,7 @@ package partmem
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"time"
 )
@@ -23,12 +24,15 @@ type PartCollection struct {
 	partAmmount []uint64
 	//Lists of actual parts with data
 	partLists []*apart
+	//Last request ID
+	lid int64
 }
 
 //Computes the actual number of parts and its sizes
 func (pc PartCollection) GetActParts() string {
 	var mensj string
 	var totalSize uint64
+	mensj += fmt.Sprintf("Last request ID: %d\n",pc.lid)
 	for index, value := range pc.partLists {
 		count := 0 
 		mensj += fmt.Sprintf("Parts of size: %d, ", pc.partSizes[index])
@@ -39,27 +43,11 @@ func (pc PartCollection) GetActParts() string {
 		}
 		mensj += fmt.Sprintf("Count: %d\n", count)
 	}
-	mensj += fmt.Sprintf("Total size: %d\n",totalSize)
+	mensj += fmt.Sprintf("Total size: %d bytes.\n",totalSize)
 	return mensj
 }
 
-//Prints the actual list of _apart_ elements of every size
-func (pc PartCollection) Crawl() {
-	fmt.Printf("Crawling the data\n")
-	fmt.Printf("pc.partSizes: %v\n", pc.partSizes)
-	fmt.Printf("pc.partLists: %v\n", pc.partLists)
-	for index, _ := range pc.partSizes {
-		p := pc.partLists[index]
-		x := 1
-		for p != nil {
-			fmt.Printf("#%d Element size: %d\n", x, len(p.data))
-			p = p.next
-			x++
-		}
-	}
-}
-
-//Creates a new instance of partCollection 
+//Creates a new instance of partCollection.  No need to initialize lid
 func NewpC() PartCollection {
 	var pC PartCollection
 	//Works best when each size is 4x the previous one
@@ -121,9 +109,31 @@ func fillPart(part []byte) {
 }
 
 //Create or remove parts to reach the expected number of parts as defined in the partCollection parameter
-func CreateParts(ptS *PartCollection) string {
+func CreateParts(ptS *PartCollection, ts int64, lock chan int64) {
 	var pap *apart
-	var mensj string
+	var lt time.Time
+
+	select {
+	case <- time.After(5 * time.Second):
+		//If 5 seconds pass without getting the proper lock, abort
+		log.Printf("partmem.CreateParts(): timeout waiting for lock\n")
+		return
+	case chts := <- lock:
+		if chts == ts { //Got the lock and it matches the timestamp received
+			//Proceed
+			ptS.lid = ts
+			defer func(){
+				lock <- 0 //Release lock
+			}()
+			lt = time.Now() //Start counting how long does the parts creation take
+			log.Printf("partmem.CreateParts(): lock obtained, timestamps match: %d\n",ts)
+		} else {
+			log.Printf("partmem.CreateParts(): lock obtained, but timestamps missmatch: %d - %d\n", ts,chts)
+			lock <- chts
+			return
+		}
+	}
+
 	for index, value := range ptS.partSizes {
 		desirednumParts := ptS.partAmmount[index]
 		//mensj += fmt.Sprintf("Desired number of parts: %d:\n", desirednumParts)
@@ -156,7 +166,7 @@ func CreateParts(ptS *PartCollection) string {
 			pap.next = nil
 		} 
 	}
-	return mensj
+	log.Printf("CreateParts(): Request %d completed in %d seconds\n",ts,int64(time.Since(lt).Seconds()))
 }
 
 //Prints the number of _apart_ elements defined
