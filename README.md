@@ -83,8 +83,55 @@ Every goroutine serving an API endpoints tries to get the lock at the beginning 
 * If the boolean is false, the lock could not be acquired which means that another gorutine is running, so a _server busy_ message is returned to the client. In this case the value is not important.
 * If the boolean is true, the lock could be acquired and the value indicates the message described before. If the value is 0 the goroutine can procedd, otherwise a memory update is being processed and this request cannot run, the lock is returned with the same value, the executio sleeps for 1 second and a server busy message is returned to the client.
 
-This two layer locking mechanism requiring the goroutine to get the lock and having a specific value may look inefficient, however this is because of the time that a large memory allocation may take.  When such a request is received, for example __/api/mem/add?size=1777333555__, the addMem() goroutine is called, gets the lock and eventually calls `partmem.CreateParts()` which is responsible for adding or removing data to memory to reach the size specified in the request, in the example around 1.6Gi.  The time required to allocated such a large ammount of memory may take more time than the client or, in the case of Openshift, the routers timeout, causing the cliente to get an error message:
+This two layer locking mechanism requiring the goroutine to get the lock and having a specific value may look inefficient, however this is designed this way because of the time that a large memory allocation may take.  When such a request is received, for example __/api/mem/add?size=1777333555__, the addMem() goroutine is called, gets the lock and eventually calls `partmem.CreateParts()` which is responsible for the actual adding or removing of data to reach the size specified in the request, around 1.6Gi in the example.  The time required to allocated such a large ammount of memory may be longer than the client or the Openshift routers are willing to wait, causing a timeout message: 
 
 ```shell
-
+$ curl http://testero.apps.ocp4.example.com/api/mem/add?size=1777333555
+<html><body><h1>504 Gateway Time-out</h1>
+The server didn't respond in time.
+</body></html>
 ```
+This however does not affect the goroutine, which will carry on with its task until completion, as a followup query will show:
+```
+$ curl -s http://testero.apps.ocp4.example.com:8080/api/mem/getact
+Last request ID: 1616421155253155251
+Parts of size: 256000, Count: 20
+Parts of size: 1048576, Count: 20
+Parts of size: 4194304, Count: 20
+Parts of size: 16777216, Count: 20
+Parts of size: 67108864, Count: 20
+Total size: 1787699200 bytes.
+```
+To avoid this situation the call to `partmem.CreateParts()` is executed as another goroutine, as soon as the call is made, a message is sent to the client and the connection is closed, while the memory allocation continues on the server side until completion.
+```
+go partmem.CreateParts(&partScheme, tstamp, lock)
+fmt.Fprintf(writer, "Memory data request sent for %d bytes, with id#: %d, check /api/mem/getact\n",sm,tstamp)
+```
+With this design the timeout issue is avoided, but the function associated with the api endpoint __/api/mem/add__ releases the lock when it finishes making it available for another goroutine to claim it.  To guarrantee that the newly spawned `partmem.CreateParts()` function gets the lock before any other goroutine the following algorithm is used:
+
+1. If the `addMem()` goroutine launches `partmem.CreateParts()`, the lock is released by assigning a timestamp value in nanoseconds to it, that same timestamp value is sent as a parameter to `partmem.CreateParts()`
+1. Any goroutine that gets the lock, will read its value and seeing its a non zero value, will realese the lock again putting the same value back.
+1. When the `partmem.CreateParts()` function starts it waits for the lock to be available. If the lock can be read and it contains the same value that was passed as a parameter, the function can proceed; if the values don't match the lock is returned and a log message is sent because this probably should not happen.  If 5 seconds pass and the lock could not be obtained a log message is recorded and the function returns.
+1. If the function got the correct lock, the lock will be released with a value of 0 so another function can take it.
+```
+select {
+  case <- time.After(5 * time.Second):
+    log.Printf("partmem.CreateParts(): timeout waiting for lock\n")
+    return
+  case chts := <- lock:
+    if chts == ts { //Got the lock and it matches the timestamp received
+      //Proceed
+      ptS.lid = ts
+      defer func(){
+        lock <- 0 //Release lock
+      }()
+      lt = time.Now() //Start counting how long does the parts creation take
+      log.Printf("partmem.CreateParts(): lock obtained, timestamps match: %d\n",ts)
+    } else {
+      log.Printf("partmem.CreateParts(): lock obtained, but timestamps missmatch: %d - %d\n", ts,chts)
+      lock <- chts
+      return
+    }
+  }
+```
+An important point to make sure that the lock is released even if a goroutine ends in failure is that a function is used to release the lock, and that function is deferred as soon as the lock is obtained.
