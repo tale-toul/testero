@@ -55,7 +55,6 @@ func getLock() (int64, bool) {
 		//Lock not available return
 		return 0, false
 	}
-
 }
 
 //Compute and create the parts for the ammount of memory requested
@@ -103,7 +102,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 		}
 		//Create the actual parts
 		go partmem.CreateParts(&partScheme, tstamp, lock)
-		fmt.Fprintf(writer, "Memory data request sent for %d bytes, with id#: %d, check /api/mem/getact\n",sm,tstamp)
+		fmt.Fprintf(writer, "Memory data request sent for %d bytes, with id#: %d, check /api/mem/getact\n", sm, tstamp)
 	}
 }
 

@@ -144,7 +144,7 @@ func CreateParts(ptS *PartCollection, ts int64, lock chan int64) {
 			//mensj += fmt.Sprintf("Create 1st elment")
 			var newpart apart
 			newpart.data = make([]byte, value)
-			fillPart(newpart.data)
+			//fillPart(newpart.data)
 			ptS.partLists[index] = &newpart
 			pap = &newpart
 		}
@@ -153,7 +153,7 @@ func CreateParts(ptS *PartCollection, ts int64, lock chan int64) {
 				//mensj += fmt.Sprintf("\nCreate elm #%d; ",i)
 				var newpart apart
 				newpart.data = make([]byte, value)
-				fillPart(newpart.data)
+				//fillPart(newpart.data)
 				pap.next = &newpart
 			}
 			if pap != nil {
