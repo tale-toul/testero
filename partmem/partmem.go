@@ -136,6 +136,10 @@ func CreateParts(ptS *PartCollection, ts int64, lock chan int64) {
 
 	for index, value := range ptS.partSizes {
 		desirednumParts := ptS.partAmmount[index]
+		//Create and fill reference part
+		var refpart apart
+		refpart.data = make([]byte, value)
+		fillPart(refpart.data)
 		//mensj += fmt.Sprintf("Desired number of parts: %d:\n", desirednumParts)
 		pap = ptS.partLists[index]
 		if desirednumParts == 0 {
@@ -143,17 +147,16 @@ func CreateParts(ptS *PartCollection, ts int64, lock chan int64) {
 		} else if pap == nil && desirednumParts > 0 { //Create the first element
 			//mensj += fmt.Sprintf("Create 1st elment")
 			var newpart apart
-			newpart.data = make([]byte, value)
-			//fillPart(newpart.data)
+			newpart.data = make([]byte,value)
+			copy(newpart.data,refpart.data)
 			ptS.partLists[index] = &newpart
 			pap = &newpart
 		}
 		for i := uint64(1); i < desirednumParts; i++ {
 			if pap.next == nil {
-				//mensj += fmt.Sprintf("\nCreate elm #%d; ",i)
 				var newpart apart
-				newpart.data = make([]byte, value)
-				//fillPart(newpart.data)
+				newpart.data = make([]byte,value)
+				copy(newpart.data,refpart.data)
 				pap.next = &newpart
 			}
 			if pap != nil {
