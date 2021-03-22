@@ -1,5 +1,5 @@
 # TESTERO
-Testero is a simple webserver application written in go to test resource consumption in a running system.  
+Testero is a simple webserver application written in go to check resource consumption in a running system.  
 
 The application is intended to run as a containerized service in a kubernetes cluster, but it can also be run directly from the terminal in a host.
 
