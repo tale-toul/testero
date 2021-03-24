@@ -52,7 +52,7 @@ func NewpC() PartCollection {
 	var pC PartCollection
 	//Works best when each size is 4x the previous one
 	//                      250Kb,  1Mb,     4Mb,     16Mb,     64Mb
-	pC.partSizes = []uint64{256000, 1048576, 4194304, 16777216, 67108864}
+	pC.partSizes = []uint64{262144, 1048576, 4194304, 16777216, 67108864}
 	pC.partAmmount = make([]uint64, len(pC.partSizes))
 	pC.partLists = make([]*apart, len(pC.partSizes))
 	return pC
