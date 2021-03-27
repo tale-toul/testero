@@ -31,14 +31,19 @@ func checkCreaDirErr(err error) {
 	}
 }
 
-//Create sub directories
-func createSubDirs(basedir string, fc FileCollection) error {
-	for size := range fc.fileSizes {
-		subdir := fmt.Sprintf("%s/f-%d", basedir, size)
-		log.Printf("createSubDirs(): creating %s\n",subdir)
-		err := os.Mkdir(subdir, 0775)
-		if err != nil {
-			checkCreaDirErr(err)
+//Create a single directory
+func createDir(dirname string) error {
+	err := os.Mkdir(dirname,0755)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			fin, errin := os.Stat(dirname)
+			if errin == nil && fin.IsDir() { //Directory already exists, that's fine
+				return nil
+			} else {//Error creating directory
+				log.Printf("createDir(): Out error: %s; In error: %s", err,errin)
+				return err
+			}
+		} else { //Error creating directory
 			return err
 		}
 	}
@@ -46,34 +51,22 @@ func createSubDirs(basedir string, fc FileCollection) error {
 }
 
 //Creates the directory tree to store files
-//DON'T CHANGE fc, it's a copy not the original
+//DON'T update fc value, it's a copy not the original
 func CreateTree(basedir string, fc FileCollection) error {
-	finfo, err := os.Stat(basedir)
+	log.Printf("Creating base dir: %s",basedir)
+	err := createDir(basedir)
 	if err != nil {
-		if errors.Is(err, os.ErrPermission) { //Not enough permissions to get the dir
-			log.Printf("Error reading directory: %s", err)
-			return err
-		} else if errors.Is(err, os.ErrNotExist) { //The directory does not exist, create it
-			err = os.Mkdir(basedir, 0775)
-			if err != nil {
-				checkCreaDirErr(err)
-				return err
-			} else { //Create subdirectories
-				err = createSubDirs(basedir, fc)
-				if err != nil {
-					return err
-				}
-			}
-		} else {
-			log.Printf("Unexpected error: %s", err)
-		}
-	} else if !finfo.IsDir() { //Not a directory
-		log.Printf("Not a directory: %s", finfo.Name())
+		log.Printf("Error creating basedir: %s", basedir)
 		return err
-	} else { //Directory exists
-		err = createSubDirs(basedir, fc)
-		if err != nil {
-			return err
+	} else {//Base dir created, create subdirs
+		for _,size := range fc.fileSizes {
+			subdir := fmt.Sprintf("%s/f-%d", basedir, size)
+			log.Printf("createSubDirs(): creating %s\n",subdir)
+			err = createDir(subdir)
+			if err != nil {
+				log.Printf("Error creating subdir: %s", subdir)
+				return err
+			}
 		}
 	}
 	return nil
