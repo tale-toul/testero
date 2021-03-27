@@ -7,6 +7,9 @@ import (
 	"os"
 )
 
+//Max number of files for each size that can be created
+const limitFiles uint64 = 25
+
 //Holds a representation of the file data
 type FileCollection struct {
 	//Sizes of files in bytes
@@ -66,6 +69,47 @@ func CreateTree(basedir string, fc FileCollection) error {
 			if err != nil {
 				log.Printf("Error creating subdir: %s", subdir)
 				return err
+			}
+		}
+	}
+	return nil
+}
+
+//Compute the number of files of each size require for the size requested
+//tsize contains the number of bytes to allocate
+//hlimit is the maximum size that can be requested
+func Definefiles(tsize uint64, hilimit uint64, flS *FileCollection) error {
+	var nfiles, remain uint64
+	if tsize > hilimit || tsize == 0 {
+		return fmt.Errorf("Invalid total size %d.  High limit is %d bytes.", tsize, hilimit)
+	}
+	for index, fsize := range flS.fileSizes {
+		nfiles = tsize / fsize
+		remain = tsize % fsize
+		if nfiles > limitFiles { //Keep adding more parts
+			tsize -= limitFiles * fsize
+			flS.fileAmmount[index] = limitFiles
+		} else if nfiles == 0 {
+			flS.fileAmmount[index] = 0
+		} else {
+			tsize -= nfiles * fsize
+			flS.fileAmmount[index] = nfiles
+		}
+	}
+	if tsize > flS.fileSizes[len(flS.fileSizes)-1] { //The remaining size to allocate is bigger than the biggest file sezie, Add more parts of the maximum size
+		nfiles = tsize / flS.fileSizes[len(flS.fileSizes)-1]
+		remain = tsize % flS.fileSizes[len(flS.fileSizes)-1]
+		flS.fileAmmount[len(flS.fileAmmount)-1] += nfiles
+	}
+	if remain > 0 { //The remain must be smaller than the bigger file size.
+		for index, fsize := range flS.fileSizes {
+			if remain <= 3*fsize {
+				signRemain := int(remain)
+				for signRemain > 0 {
+					flS.fileAmmount[index]++
+					signRemain -= int(fsize)
+				}
+				break
 			}
 		}
 	}
