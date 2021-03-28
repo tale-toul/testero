@@ -18,8 +18,10 @@ var partScheme partmem.PartCollection
 //Data structure with files definitions
 var fileScheme partdisk.FileCollection
 
-//Lock buffered, to make sure there is no concurrency problems
+//Lock buffered, to make sure there is no concurrency problems with memory operations
 var lock chan int64
+//Lock buffered, to facilitate disk operations
+var filelock chan int64
 
 //Environment variable to set the limit for request to add data into memory.  In bytes
 var HIGHMEMLIM uint64
@@ -47,11 +49,18 @@ func setEnvNum(evv string) uint64{
 }
 
 func main() {
+	//Initialize memory lock
 	lock = make(chan int64, 1)
 	lock <- 0
+	//Initialize file lock
+	filelock = make(chan int64, 1)
+	filelock <- 0
+
+	//Create objects for memory and files
 	partScheme = partmem.NewpC()
 	fileScheme.NewfC()
 
+	//Get values from environment variables, if they exist
 	HIGHMEMLIM = setEnvNum("HIGHMEMLIM")
 	HIGHFILELIM = setEnvNum("HIGHFILELIM")
 	DATADIR = os.Getenv("DATADIR")
@@ -66,37 +75,37 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-//Free the concurrency lock. It's a function so it can be deferred
-func freeLock(value *int64) {
-	lock <- *value
+//Free the concurrency memory lock. It's a function so it can be deferred
+//value is a pointer because the function is deferred, and value can change during the execution of the calling function
+func freeLock(l chan int64, value *int64) {
+	l <- *value
 }
 
-//Attemp to get hold of the lock
-func getLock() (int64, bool) {
+//Attemps to get hold of the memory lock
+func getLock(l chan int64) (int64, bool) {
 	select {
-	case r := <-lock:
+	case r := <- l:
 		return r, true
 	default:
 		//Lock not available return
 		return 0, false
 	}
-
 }
 
 //Compute and create the parts for the ammount of memory requested
 func addMem(writer http.ResponseWriter, request *http.Request) {
 	tstamp := time.Now().UnixNano() //Request timestamp
-	lval, islav := getLock()
+	lval, islav := getLock(lock)
 	if !islav { //Lock not available
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
-		defer freeLock(&lval)
+		defer freeLock(lock,&lval)
 		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
 		time.Sleep(1 * time.Second)
 		return
 	} else { //Lock is available and no pending requests (0)
-		defer freeLock(&tstamp) //Make sure the lock is released even if errors occur
+		defer freeLock(lock,&tstamp) //Make sure the lock is released even if errors occur
 		bsm := request.URL.Query().Get("size")
 		var sm uint64 //Requested size in bytes
 		var err error
@@ -134,18 +143,18 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 
 //Request the definition of parts
 func getDefMem(writer http.ResponseWriter, request *http.Request) {
-	lval, islav := getLock()
+	lval, islav := getLock(lock)
 	if !islav { //Lock not available
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
-		defer freeLock(&lval)
+		defer freeLock(lock,&lval)
 		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
 		time.Sleep(1 * time.Second)
 		return
 	} else { //Lock obtained and no pending request
 		var unlock int64 = 0
-		defer freeLock(&unlock) //Make sure the lock is released even if error occur
+		defer freeLock(lock,&unlock) //Make sure the lock is released even if error occur
 		mensj := partmem.GetDefParts(&partScheme)
 		fmt.Fprintf(writer, mensj)
 	}
@@ -153,18 +162,18 @@ func getDefMem(writer http.ResponseWriter, request *http.Request) {
 
 //Request the actual definition of parts created
 func getActMem(writer http.ResponseWriter, request *http.Request) {
-	lval, islav := getLock()
+	lval, islav := getLock(lock)
 	if !islav { //Lock not available
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
-		defer freeLock(&lval)
+		defer freeLock(lock,&lval)
 		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
 		time.Sleep(1 * time.Second)
 		return
 	} else { //Lock obtained and no pending request
 		var unlock int64 = 0
-		defer freeLock(&unlock) //Make sure the lock is released even if error occur
+		defer freeLock(lock,&unlock) //Make sure the lock is released even if error occur
 		mensj := partScheme.GetActParts()
 		fmt.Fprintf(writer, mensj)
 	}
