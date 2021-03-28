@@ -239,6 +239,19 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 
 //Shows the definition of files and sizes
 func getDefFiles(writer http.ResponseWriter, request *http.Request) {
-	mensj := partdisk.GetDefFiles(&fileScheme)
-	fmt.Fprintf(writer, mensj)
+	lval, islav := getLock(filelock)
+	if !islav { //Lock not available
+		fmt.Fprintf(writer, "Server busy, try again later\n")
+		return
+	} else if lval != 0 { //There is a pending request for file allocation
+		defer freeLock(filelock,&lval)
+		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
+		time.Sleep(1 * time.Second)
+		return
+	} else { //Lock obtained and no pending request
+		var unlock int64 = 0
+		defer freeLock(filelock,&unlock) //Make sure the lock is released even if error occur
+		mensj := partdisk.GetDefFiles(&fileScheme)
+		fmt.Fprintf(writer, mensj)
+	}
 }

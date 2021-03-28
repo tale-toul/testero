@@ -25,15 +25,6 @@ func (fc *FileCollection) NewfC() {
 	fc.fileAmmount = make([]uint64, len(fc.fileSizes))
 }
 
-//Check for directory errors
-func checkCreaDirErr(err error) {
-	if errors.Is(err, os.ErrPermission) { //Not enough permissions to create the dir
-		log.Printf("Error creating directory: %s", err)
-	} else if errors.Is(err, os.ErrExist) { //Created in the meanwhile, odd
-		log.Printf("The directory already exists: %s", err)
-	}
-}
-
 //Create a single directory
 func createDir(dirname string) error {
 	err := os.Mkdir(dirname,0755)
