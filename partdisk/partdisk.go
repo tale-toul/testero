@@ -78,7 +78,7 @@ func CreateTree(basedir string, fc FileCollection) error {
 //Compute the number of files of each size require for the size requested
 //tsize contains the number of bytes to allocate
 //hlimit is the maximum size that can be requested
-func Definefiles(tsize uint64, hilimit uint64, flS *FileCollection) error {
+func DefineFiles(tsize uint64, hilimit uint64, flS *FileCollection) error {
 	var nfiles, remain uint64
 	if tsize > hilimit || tsize == 0 {
 		return fmt.Errorf("Invalid total size %d.  High limit is %d bytes.", tsize, hilimit)
@@ -114,4 +114,16 @@ func Definefiles(tsize uint64, hilimit uint64, flS *FileCollection) error {
 		}
 	}
 	return nil
+}
+
+//Prints the number of _file_ elements defined
+func GetDefFiles (fS *FileCollection) string {
+	var semiTotal uint64
+	var rst string
+	for index, value := range fS.fileSizes {
+		semiTotal += value * fS.fileAmmount[index]
+		rst += fmt.Sprintf("Files of size: %d, count: %d, total size: %d\n", value, fS.fileAmmount[index], value*fS.fileAmmount[index])
+	}
+	rst += fmt.Sprintf("Total size reserved: %d bytes.\n", semiTotal)
+	return rst
 }
