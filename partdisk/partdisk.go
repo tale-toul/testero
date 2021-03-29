@@ -4,12 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"time"
 )
 
 //Max number of files for each size that can be created
 const limitFiles uint64 = 25
+//Length of random id string
+const rstl int = 7
+//data files dir base name
+const fbasedir string = "data"
 
 //Holds a representation of the file data
 type FileCollection struct {
@@ -19,6 +24,8 @@ type FileCollection struct {
 	fileAmmount []uint64
 	//Last request ID
 	flid int64
+	//Random id string
+	frandi string
 }
 
 //Initializes a FileCollection struct
@@ -26,6 +33,17 @@ func (fc *FileCollection) NewfC() {
 	//                      512Kb   2Mb      8Mb      32Mb      128Mb
 	fc.fileSizes = []uint64{524288, 2097152, 8388608, 33554432, 134217728}
 	fc.fileAmmount = make([]uint64, len(fc.fileSizes))
+	fc.frandi = randstring(rstl)
+}
+
+//Creates a random string 
+func randstring(size int) string {
+	rval := make([]byte,size)
+	rand.Seed(time.Now().Unix())
+	for i:=0; i<size; i++ {
+		rval[i]=byte(rand.Intn(26) + 97)
+	}
+	return string(rval)
 }
 
 //Create a single directory
@@ -48,8 +66,7 @@ func createDir(dirname string) error {
 }
 
 //Creates the directory tree to store files
-//DON'T update fc value, it's a copy not the original
-func CreateTree(basedir string, fc FileCollection) error {
+func createTree(basedir string, fc *FileCollection) error {
 	log.Printf("Creating base dir: %s",basedir)
 	err := createDir(basedir)
 	if err != nil {
@@ -57,7 +74,7 @@ func CreateTree(basedir string, fc FileCollection) error {
 		return err
 	} else {//Base dir created, create subdirs
 		for _,size := range fc.fileSizes {
-			subdir := fmt.Sprintf("%s/f-%d", basedir, size)
+			subdir := fmt.Sprintf("%s/d-%d", basedir, size)
 			log.Printf("createSubDirs(): creating %s\n",subdir)
 			err = createDir(subdir)
 			if err != nil {
@@ -146,7 +163,12 @@ func CreateFiles(fS *FileCollection, ts int64, filelock chan int64) {
 			return
 		}
 	}
-
+	//Lock obtained proper, create/delete the files
+	err := createTree(fbasedir+fS.frandi,fS)
+	if err != nil {
+		log.Printf("CreateFiles(): Error creating directory tree: %s\n",fbasedir+fS.frandi)
+		return
+	}
 
 	log.Printf("CreateFiles(): Request %d completed in %d seconds\n",ts,int64(time.Since(lt).Seconds()))
 }
