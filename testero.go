@@ -201,39 +201,57 @@ func getfreeDisk(dir string) (uint64, error) {
 
 //Request the definition of files
 func addFiles(writer http.ResponseWriter, request *http.Request) {
-	//Locking facility is missing at the moment
-	bsm := request.URL.Query().Get("size")
-	var sm uint64 //Requested size in bytes
-	var err error
-	if bsm != "" {
-		sm, err = strconv.ParseUint(bsm, 10, 64)
-		if err != nil {
-			fmt.Fprintf(writer, "Could not get size: %s\n", err.Error())
+	tstamp := time.Now().UnixNano() //Request timestamp
+	lval, islav := getLock(filelock)
+	if !islav { //Lock not available
+		fmt.Fprintf(writer, "Server busy, try again later\n")
+		return
+	} else if lval != 0 { //There is a pending request for mem allocation
+		defer freeLock(filelock,&lval)
+		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
+		time.Sleep(1 * time.Second)
+		return
+	} else { //Lock is available and no pending requests (0)
+		defer freeLock(filelock,&tstamp) //Make sure the lock is released even if errors occur
+		bsm := request.URL.Query().Get("size")
+		var sm uint64 //Requested size in bytes
+		var err error
+		if bsm != "" {
+			sm, err = strconv.ParseUint(bsm, 10, 64)
+			if err != nil {
+				fmt.Fprintf(writer, "Could not get size: %s\n", err.Error())
+				tstamp = 0
+				return
+			}
+		} else { //No size specified
+			fmt.Fprintf(writer, "No data size specified\n")
+			tstamp = 0
 			return
 		}
-	} else { //No size specified
-		fmt.Fprintf(writer, "No data size specified\n")
-		return
-	}
 
-	//Set the high limit for the total size to request
-	if HIGHFILELIM == 0 { //Not defined
-		if DATADIR == "" {
-			DATADIR = "."
+		//Set the high limit for the total size to request
+		if HIGHFILELIM == 0 { //Not defined
+			if DATADIR == "" {
+				DATADIR = "."
+			}
+			HIGHFILELIM, err = getfreeDisk(DATADIR)
+			if err != nil {
+				fmt.Fprintf(writer, "Error computing available disk space\n")
+				return
+			}
 		}
-		HIGHFILELIM, err = getfreeDisk(DATADIR)
+
+		//Compute the number of parts of each size to accomodate the total size.
+		//The result is stored in partScheme
+		err = partdisk.DefineFiles(sm, HIGHFILELIM, &fileScheme)
 		if err != nil {
-			fmt.Fprintf(writer, "Error computing available disk space\n")
+			fmt.Fprintf(writer, "Could not compute file distribution: %s\n", err.Error())
+			tstamp = 0
 			return
 		}
-	}
-
-	//Compute the number of parts of each size to accomodate the total size.
-	//The result is stored in partScheme
-	err = partdisk.DefineFiles(sm, HIGHFILELIM, &fileScheme)
-	if err != nil {
-		fmt.Fprintf(writer, "Could not compute file distribution: %s\n", err.Error())
-		return
+		//Create the actual parts under here
+		go partdisk.CreateFiles(&fileScheme, tstamp, filelock)
+		fmt.Fprintf(writer, "File data request sent for %d bytes, with id#: %d, check /api/disk/getact\n",sm,tstamp)
 	}
 }
 

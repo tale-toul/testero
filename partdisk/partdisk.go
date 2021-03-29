@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 )
 
 //Max number of files for each size that can be created
@@ -16,6 +17,8 @@ type FileCollection struct {
 	fileSizes []uint64
 	//Amount of files per size
 	fileAmmount []uint64
+	//Last request ID
+	flid int64
 }
 
 //Initializes a FileCollection struct
@@ -117,4 +120,33 @@ func GetDefFiles (fS *FileCollection) string {
 	}
 	rst += fmt.Sprintf("Total size reserved: %d bytes.\n", semiTotal)
 	return rst
+}
+
+//Create or remove files to reach the requested number of files of each size
+func CreateFiles(fS *FileCollection, ts int64, filelock chan int64) {
+	var lt time.Time
+
+	select {
+	case <- time.After(5 * time.Second):
+		//If 5 seconds pass without getting the proper lock, abort
+		log.Printf("partdisk.CreateFiles(): timeout waiting for lock\n")
+		return
+	case chts := <- filelock:
+		if chts == ts { //Got the lock and it matches the timestamp received
+			//Proceed
+			fS.flid = ts
+			defer func(){
+				filelock <- 0 //Release lock
+			}()
+			lt = time.Now() //Start counting how long does the parts creation take
+			log.Printf("partmem.CreateParts(): lock obtained, timestamps match: %d\n",ts)
+		} else {
+			log.Printf("partmem.CreateParts(): lock obtained, but timestamps missmatch: %d - %d\n", ts,chts)
+			filelock <- chts
+			return
+		}
+	}
+
+
+	log.Printf("CreateFiles(): Request %d completed in %d seconds\n",ts,int64(time.Since(lt).Seconds()))
 }
