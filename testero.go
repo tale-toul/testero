@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/tale-toul/testero/partmem"
 	"github.com/tale-toul/testero/partdisk"
+	"github.com/tale-toul/testero/partmem"
 	"log"
 	"net/http"
 	"os"
@@ -20,30 +20,33 @@ var fileScheme partdisk.FileCollection
 
 //Lock buffered, to make sure there is no concurrency problems with memory operations
 var lock chan int64
+
 //Lock buffered, to facilitate disk operations
 var filelock chan int64
 
 //Environment variable to set the limit for request to add data into memory.  In bytes
 var HIGHMEMLIM uint64
+
 //Environment var to set the limit of storage space, in bytes.
 var HIGHFILELIM uint64
+
 //Env var specifying the directory to store files
 var DATADIR string
 
 //Attempt to get the value for memory limit from HIGHMEMLIM environment variable
-func setEnvNum(evv string) uint64{
+func setEnvNum(evv string) uint64 {
 	var errnv error
 	var envalue uint64
 	evveml := os.Getenv(evv)
 	if evveml != "" { //Env var exists
 		envalue, errnv = strconv.ParseUint(evveml, 10, 64)
 		if errnv != nil { //There was an error during convertion to number
-			log.Printf("Error: Cannot convert %s environment var. into number. %s=%s.  Default value will be used", evv,evv,evveml)
+			log.Printf("Error: Cannot convert %s environment var. into number. %s=%s.  Default value will be used", evv, evv, evveml)
 			return 0
 		} else {
 			return envalue
 		}
-	} else {//Env var does not exist
+	} else { //Env var does not exist
 		return 0
 	}
 }
@@ -56,14 +59,17 @@ func main() {
 	filelock = make(chan int64, 1)
 	filelock <- 0
 
-	//Create objects for memory and files
-	partScheme = partmem.NewpC()
-	fileScheme.NewfC()
-
 	//Get values from environment variables, if they exist
 	HIGHMEMLIM = setEnvNum("HIGHMEMLIM")
 	HIGHFILELIM = setEnvNum("HIGHFILELIM")
 	DATADIR = os.Getenv("DATADIR")
+	if DATADIR == "" {
+		DATADIR = "."
+	}
+
+	//Create objects for memory and files
+	partScheme = partmem.NewpC()
+	fileScheme.NewfC(DATADIR)
 
 	//Memory handlers
 	http.HandleFunc("/api/mem/add", addMem)
@@ -84,7 +90,7 @@ func freeLock(l chan int64, value *int64) {
 //Attemps to get hold of the memory lock
 func getLock(l chan int64) (int64, bool) {
 	select {
-	case r := <- l:
+	case r := <-l:
 		return r, true
 	default:
 		//Lock not available return
@@ -100,12 +106,12 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
-		defer freeLock(lock,&lval)
+		defer freeLock(lock, &lval)
 		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
 		time.Sleep(1 * time.Second)
 		return
 	} else { //Lock is available and no pending requests (0)
-		defer freeLock(lock,&tstamp) //Make sure the lock is released even if errors occur
+		defer freeLock(lock, &tstamp) //Make sure the lock is released even if errors occur
 		bsm := request.URL.Query().Get("size")
 		var sm uint64 //Requested size in bytes
 		var err error
@@ -137,7 +143,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 		}
 		//Create the actual parts
 		go partmem.CreateParts(&partScheme, tstamp, lock)
-		fmt.Fprintf(writer, "Memory data request sent for %d bytes, with id#: %d, check /api/mem/getact\n",sm,tstamp)
+		fmt.Fprintf(writer, "Memory data request sent for %d bytes, with id#: %d, check /api/mem/getact\n", sm, tstamp)
 	}
 }
 
@@ -148,13 +154,13 @@ func getDefMem(writer http.ResponseWriter, request *http.Request) {
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
-		defer freeLock(lock,&lval)
+		defer freeLock(lock, &lval)
 		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
 		time.Sleep(1 * time.Second)
 		return
 	} else { //Lock obtained and no pending request
 		var unlock int64 = 0
-		defer freeLock(lock,&unlock) //Make sure the lock is released even if error occur
+		defer freeLock(lock, &unlock) //Make sure the lock is released even if error occur
 		mensj := partmem.GetDefParts(&partScheme)
 		fmt.Fprintf(writer, mensj)
 	}
@@ -167,13 +173,13 @@ func getActMem(writer http.ResponseWriter, request *http.Request) {
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
-		defer freeLock(lock,&lval)
+		defer freeLock(lock, &lval)
 		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
 		time.Sleep(1 * time.Second)
 		return
 	} else { //Lock obtained and no pending request
 		var unlock int64 = 0
-		defer freeLock(lock,&unlock) //Make sure the lock is released even if error occur
+		defer freeLock(lock, &unlock) //Make sure the lock is released even if error occur
 		mensj := partScheme.GetActParts()
 		fmt.Fprintf(writer, mensj)
 	}
@@ -207,12 +213,12 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
-		defer freeLock(filelock,&lval)
+		defer freeLock(filelock, &lval)
 		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
 		time.Sleep(1 * time.Second)
 		return
 	} else { //Lock is available and no pending requests (0)
-		defer freeLock(filelock,&tstamp) //Make sure the lock is released even if errors occur
+		defer freeLock(filelock, &tstamp) //Make sure the lock is released even if errors occur
 		bsm := request.URL.Query().Get("size")
 		var sm uint64 //Requested size in bytes
 		var err error
@@ -230,15 +236,11 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 		}
 
 		//Set the high limit for the total size to request
-		if HIGHFILELIM == 0 { //Not defined
-			if DATADIR == "" {
-				DATADIR = "."
-			}
-			HIGHFILELIM, err = getfreeDisk(DATADIR)
-			if err != nil {
-				fmt.Fprintf(writer, "Error computing available disk space\n")
-				return
-			}
+		HIGHFILELIM, err = getfreeDisk(DATADIR)
+		if err != nil {
+			fmt.Fprintf(writer, "Error computing available disk space for directory: %s\n%s\n", DATADIR, err.Error())
+			tstamp = 0
+			return
 		}
 
 		//Compute the number of parts of each size to accomodate the total size.
@@ -251,7 +253,7 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 		}
 		//Create the actual parts under here
 		go partdisk.CreateFiles(&fileScheme, tstamp, filelock)
-		fmt.Fprintf(writer, "File data request sent for %d bytes, with id#: %d, check /api/disk/getact\n",sm,tstamp)
+		fmt.Fprintf(writer, "File data request sent for %d bytes, with id#: %d, check /api/disk/getact\n", sm, tstamp)
 	}
 }
 
@@ -262,13 +264,13 @@ func getDefFiles(writer http.ResponseWriter, request *http.Request) {
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for file allocation
-		defer freeLock(filelock,&lval)
+		defer freeLock(filelock, &lval)
 		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
 		time.Sleep(1 * time.Second)
 		return
 	} else { //Lock obtained and no pending request
 		var unlock int64 = 0
-		defer freeLock(filelock,&unlock) //Make sure the lock is released even if error occur
+		defer freeLock(filelock, &unlock) //Make sure the lock is released even if error occur
 		mensj := partdisk.GetDefFiles(&fileScheme)
 		fmt.Fprintf(writer, mensj)
 	}

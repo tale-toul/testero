@@ -13,8 +13,6 @@ import (
 const limitFiles uint64 = 25
 //Length of random id string
 const rstl int = 7
-//data files dir base name
-const fbasedir string = "data"
 
 //Holds a representation of the file data
 type FileCollection struct {
@@ -29,11 +27,11 @@ type FileCollection struct {
 }
 
 //Initializes a FileCollection struct
-func (fc *FileCollection) NewfC() {
+func (fc *FileCollection) NewfC(basedir string) {
 	//                      512Kb   2Mb      8Mb      32Mb      128Mb
 	fc.fileSizes = []uint64{524288, 2097152, 8388608, 33554432, 134217728}
 	fc.fileAmmount = make([]uint64, len(fc.fileSizes))
-	fc.frandi = randstring(rstl)
+	fc.frandi = basedir+"/"+randstring(rstl)
 }
 
 //Creates a random string 
@@ -66,15 +64,15 @@ func createDir(dirname string) error {
 }
 
 //Creates the directory tree to store files
-func createTree(basedir string, fc *FileCollection) error {
-	log.Printf("Creating base dir: %s",basedir)
-	err := createDir(basedir)
+func createTree(fc *FileCollection) error {
+	log.Printf("Creating base dir: %s",fc.frandi)
+	err := createDir(fc.frandi)
 	if err != nil {
-		log.Printf("Error creating basedir: %s", basedir)
+		log.Printf("Error creating basedir: %s", fc.frandi)
 		return err
 	} else {//Base dir created, create subdirs
 		for _,size := range fc.fileSizes {
-			subdir := fmt.Sprintf("%s/d-%d", basedir, size)
+			subdir := fmt.Sprintf("%s/d-%d", fc.frandi, size)
 			log.Printf("createSubDirs(): creating %s\n",subdir)
 			err = createDir(subdir)
 			if err != nil {
@@ -164,11 +162,17 @@ func CreateFiles(fS *FileCollection, ts int64, filelock chan int64) {
 		}
 	}
 	//Lock obtained proper, create/delete the files
-	err := createTree(fbasedir+fS.frandi,fS)
+	err := createTree(fS)
 	if err != nil {
-		log.Printf("CreateFiles(): Error creating directory tree: %s\n",fbasedir+fS.frandi)
+		log.Printf("CreateFiles(): Error creating directory tree: %s\n%s\n",fS.frandi,err.Error())
 		return
 	}
+	//Directory tree created, now for the files
 
 	log.Printf("CreateFiles(): Request %d completed in %d seconds\n",ts,int64(time.Since(lt).Seconds()))
 }
+/*
+func adrefiles(fS *FileCollection) err {
+
+}
+*/
