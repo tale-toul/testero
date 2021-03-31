@@ -89,12 +89,34 @@ func createTree(fc *FileCollection) error {
 	return nil
 }
 
-//Compute the number of files of each size require for the size requested
+//Get the total number of bytes used up by the files already created
+func (fc FileCollection) totalFileSize() (uint64,error)	{
+	var tfsize uint64
+	for _,fsize := range fc.fileSizes {
+		directory := fmt.Sprintf("%s/d-%d",fc.frandi,fsize)
+		fileList,err := getFilesInDir(directory)
+		if err != nil {
+			log.Printf("totalSizeFiles(): Error listing directory: %s\n%s",directory,err.Error())
+			return 0,err
+		}
+		for _,v := range fileList {
+			tfsize += uint64(v.Size())
+		}
+	}
+	return tfsize,nil
+}
+
+//Compute the number of files of each size required for the size requested
 //tsize contains the number of bytes to allocate
 //hlimit is the maximum size that can be requested
 func DefineFiles(tsize uint64, hilimit uint64, flS *FileCollection) error {
 	var nfiles, remain uint64
-	if tsize > hilimit || tsize == 0 { //*THIS NEEDS TO BE CHANGED, BECAUSE THE REQUESTED SIZE MAY BE LOWER THAN THE ACTUAL USED SIZE IMPLYING A FILE DELETION, BUT GREATER THAN THE AVAILABLE SIZE WHICH WOULD BE REJECTED
+	tfs, err := flS.totalFileSize() 
+	if err != nil {
+		log.Printf("DefineFiles(): Error computing total file size: %s", err.Error())
+		return err
+	}
+	if (tsize > tfs && tsize > hilimit) || tsize == 0 { //Trying to add files, the total size exceeds the limit; or the requested size is 0
 		return fmt.Errorf("Invalid total size %d.  High limit is %d bytes.", tsize, hilimit)
 	}
 	for index, fsize := range flS.fileSizes {
@@ -142,6 +164,7 @@ func GetDefFiles(fS *FileCollection) string {
 	return rst
 }
 
+//Generate a message with information about the actual ammount and size of the existing files
 func (fc FileCollection) GetActFiles() string {
 	var mensj string
 	var totalSize int64
@@ -151,7 +174,7 @@ func (fc FileCollection) GetActFiles() string {
 		fileList,err := getFilesInDir(directory)
 		if err != nil {
 			log.Printf("GetActFiles(): Error listing directory: %s\n%s",directory,err.Error())
-			return "Error getting files data\n"
+			return "Error getting files information\n"
 		} 
 		mensj += fmt.Sprintf("Files of size: %d, Count: %d\n", fsize,len(fileList))
 		for _,fl := range fileList{
