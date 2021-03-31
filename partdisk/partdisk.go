@@ -17,7 +17,7 @@ import (
 //Max number of files for each size that can be created
 const limitFiles uint64 = 25
 //Length of random id string
-const rstl int = 7
+const rstl uint64 = 7
 
 //Holds a representation of the file data
 type FileCollection struct {
@@ -39,11 +39,11 @@ func (fc *FileCollection) NewfC(basedir string) {
 	fc.frandi = basedir+"/"+randstring(rstl)
 }
 
-//Creates a random string 
-func randstring(size int) string {
+//Creates a random string made of lower case letters only
+func randstring(size uint64) string {
 	rval := make([]byte,size)
 	rand.Seed(time.Now().Unix())
-	for i:=0; i<size; i++ {
+	for i:=0; i<int(size); i++ {
 		rval[i]=byte(rand.Intn(26) + 97)
 	}
 	return string(rval)
@@ -187,6 +187,7 @@ func CreateFiles(fS *FileCollection, ts int64, filelock chan int64) {
 func adrefiles(fS *FileCollection) error {
 	for index,value := range fS.fileSizes {
 		directory := fmt.Sprintf("%s/d-%d",fS.frandi,value)
+		//Create a list of files in directory
 		fileList,err := getFilesInDir(directory)
 		if err != nil {
 			log.Printf("adrefiles(): Error listing directory: %s",directory)
@@ -200,6 +201,15 @@ func adrefiles(fS *FileCollection) error {
 			n2,_ := strconv.ParseInt(s2,10,32)
 			return n1 < n2
 		})
+		//Get the number of the last file created, 0 if none has been
+		var lastfnum uint64
+		if len(fileList) > 0 {
+			lastfnum,_ = strconv.ParseUint(strings.TrimLeft(fileList[len(fileList)-1].Name(),"f-"),10,32)
+		} else {
+			lastfnum = 0 
+		}
+		log.Printf("Last file number: %d",lastfnum)
+		
 		//Get the total size in bytes consumed by the files
 		var tfsize,rqsize,deltasize,fdelta uint64
 		for _,v := range fileList {
@@ -217,28 +227,35 @@ func adrefiles(fS *FileCollection) error {
 			deltasize = rqsize - tfsize
 			fdelta = deltasize / value
 			log.Printf("Need to add %d bytes, %d files of size %d",deltasize,fdelta,value)
+			for n:=1;n<=int(fdelta);n++ {
+				filename := fmt.Sprintf("%s/d-%d/f-%d",fS.frandi,value,n+int(lastfnum))
+				err = newFile(filename,value)
+				if err != nil {
+					log.Printf("adrefiles(): error creating file %s:",filename)
+					return err
+				}
+			}
 		} else { //No need to add or remove anything 
 			log.Printf("No need to add or remove any files")
 		}
+	}
+	return nil
+}
 
-		//Get the number of the last file created, 0 if none has been created
-		var lastfnum uint64
-		if len(fileList) > 0 {
-			lastfnum,_ = strconv.ParseUint(strings.TrimLeft(fileList[len(fileList)-1].Name(),"f-"),10,32)
-		} else {
-			lastfnum = 0 
-		}
-		log.Printf("Last file number: %d",lastfnum)
-
-		for n:=1;n<=int(fdelta);n++ {
-			filename := fmt.Sprintf("%s/d-%d/f-%d",fS.frandi,value,n)
-			f,err := os.Create(filename)
-			f.Close()
-			if err != nil {
-				log.Printf("adrefiles(): Error creating file: %s",filename)
-				return err
-			}
-		}
+//Creates a single file of the indicated size
+func newFile(filename string, size uint64) error {
+	var trunch []byte //Trunches of 4k
+	f,err := os.Create(filename)
+	defer f.Close()
+	if err != nil {
+		log.Printf("newFile(): Error creating file: %s",filename)
+		return err
+	}
+	trunch = []byte(randstring(size))
+	_,err = f.Write(trunch)
+	if err != nil {
+		log.Printf("newFile(): Error writing to file: %s",filename)
+		return err
 	}
 	return nil
 }
