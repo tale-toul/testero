@@ -64,7 +64,7 @@ func NewpC() PartCollection {
 func DefineParts(tsize uint64, hilimit uint64, ptS *PartCollection) error {
 	var nparts, remain uint64
 
-	if tsize > hilimit || tsize == 0 {
+	if tsize > hilimit {
 		return fmt.Errorf("Invalid total size %d.  High limit is %d bytes.", tsize, hilimit)
 	}
 	for index, psize := range ptS.partSizes {
