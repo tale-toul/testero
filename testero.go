@@ -140,7 +140,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 				return
 			}
 		} else { //No size specified
-			fmt.Fprintf(writer, "No data size specified\n")
+			fmt.Fprintf(writer, "File size (in bytes) not specified: add?size=<number of bytes>\n")
 			tstamp = 0
 			return
 		}
