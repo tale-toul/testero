@@ -78,7 +78,7 @@ func createTree(fc *FileCollection) error {
 	} else {//Base dir created, create subdirs
 		for _,size := range fc.fileSizes {
 			subdir := fmt.Sprintf("%s/d-%d", fc.frandi, size)
-			log.Printf("createSubDirs(): creating %s\n",subdir)
+			log.Printf("\tcreateSubDirs(): creating %s\n",subdir)
 			err = createDir(subdir)
 			if err != nil {
 				log.Printf("Error creating subdir: %s", subdir)
@@ -214,7 +214,7 @@ func adrefiles(fS *FileCollection) error {
 		var tfsize,rqsize,deltasize,fdelta uint64
 		for _,v := range fileList {
 			tfsize += uint64(v.Size())
-			log.Printf("File: %s - Size: %d",v.Name(),v.Size())
+			//log.Printf("File: %s - Size: %d",v.Name(),v.Size())
 		}
 		log.Printf("Total file size in dir %s: %d",directory,tfsize)
 		rqsize = fS.fileAmmount[index]*value
@@ -223,6 +223,14 @@ func adrefiles(fS *FileCollection) error {
 			deltasize = tfsize - rqsize
 			fdelta = deltasize / value
 			log.Printf("Need to remove %d bytes, %d files of size %d",deltasize,fdelta,value)
+			for n:=0;n<int(fdelta);n++{
+				filename := fmt.Sprintf("%s/d-%d/f-%d",fS.frandi,value,int(lastfnum)-n)
+				err = os.Remove(filename)
+				if err != nil {
+					log.Printf("adrefiles(): error deleting file %s:",filename)
+					return err
+				}
+			}
 		} else if tfsize < rqsize { //Need to create files
 			deltasize = rqsize - tfsize
 			fdelta = deltasize / value
