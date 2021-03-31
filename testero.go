@@ -78,6 +78,7 @@ func main() {
 	//Disk handlers
 	http.HandleFunc("/api/disk/add", addFiles)
 	http.HandleFunc("/api/disk/getdef", getDefFiles)
+	http.HandleFunc("/api/disk/getact",getActFiles)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
@@ -272,6 +273,25 @@ func getDefFiles(writer http.ResponseWriter, request *http.Request) {
 		var unlock int64 = 0
 		defer freeLock(filelock, &unlock) //Make sure the lock is released even if error occur
 		mensj := partdisk.GetDefFiles(&fileScheme)
+		fmt.Fprintf(writer, mensj)
+	}
+}
+
+//Request the actual file sizes and distribution
+func getActFiles(writer http.ResponseWriter, request *http.Request) {
+	lval, islav := getLock(filelock)
+	if !islav { //Lock not available
+		fmt.Fprintf(writer, "Server busy, try again later\n")
+		return
+	} else if lval != 0 { //There is a pending request for mem allocation
+		defer freeLock(filelock, &lval)
+		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
+		time.Sleep(1 * time.Second)
+		return
+	} else { //Lock obtained and no pending request
+		var unlock int64 = 0
+		defer freeLock(filelock, &unlock) //Make sure the lock is released even if error occur
+		mensj := fileScheme.GetActFiles()
 		fmt.Fprintf(writer, mensj)
 	}
 }

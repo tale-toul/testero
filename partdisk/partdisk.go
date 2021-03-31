@@ -131,7 +131,7 @@ func DefineFiles(tsize uint64, hilimit uint64, flS *FileCollection) error {
 }
 
 //Prints the number of _file_ elements defined
-func GetDefFiles (fS *FileCollection) string {
+func GetDefFiles(fS *FileCollection) string {
 	var semiTotal uint64
 	var rst string
 	for index, value := range fS.fileSizes {
@@ -140,6 +140,26 @@ func GetDefFiles (fS *FileCollection) string {
 	}
 	rst += fmt.Sprintf("Total size reserved: %d bytes.\n", semiTotal)
 	return rst
+}
+
+func (fc FileCollection) GetActFiles() string {
+	var mensj string
+	var totalSize int64
+	mensj += fmt.Sprintf("Last request ID: %d\n",fc.flid)
+	for _,fsize := range fc.fileSizes {
+		directory := fmt.Sprintf("%s/d-%d",fc.frandi,fsize)
+		fileList,err := getFilesInDir(directory)
+		if err != nil {
+			log.Printf("GetActFiles(): Error listing directory: %s\n%s",directory,err.Error())
+			return "Error getting files data\n"
+		} 
+		mensj += fmt.Sprintf("Files of size: %d, Count: %d\n", fsize,len(fileList))
+		for _,fl := range fileList{
+			totalSize += fl.Size()
+		}
+	}
+	mensj += fmt.Sprintf("Total size: %d bytes.\n",totalSize)
+	return mensj
 }
 
 //Create or remove files to reach the requested number of files of each size
@@ -179,7 +199,6 @@ func CreateFiles(fS *FileCollection, ts int64, filelock chan int64) {
 		log.Printf("CreateFiles(): Error creating file: %s\n",err.Error())
 		return
 	}
-
 	log.Printf("CreateFiles(): Request %d completed in %d seconds\n",ts,int64(time.Since(lt).Seconds()))
 }
 
