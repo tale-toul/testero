@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"errors"
 	"github.com/tale-toul/testero/partdisk"
 	"github.com/tale-toul/testero/partmem"
 	"log"
@@ -11,6 +12,11 @@ import (
 	"syscall"
 	"time"
 )
+
+//Listening IP for the web server
+const ip string = "0.0.0.0"
+//Listening port for web server
+const port string = "8080"
 
 //Data structure with memory part definitions and data
 var partScheme partmem.PartCollection
@@ -71,6 +77,12 @@ func main() {
 	partScheme = partmem.NewpC()
 	fileScheme.NewfC(DATADIR)
 
+	err := createTree(fileScheme)
+	if err != nil {
+		log.Printf("CreateFiles(): Error creating directory tree: %s\n%s\n",fileScheme.GetRandStr(),err.Error())
+		return
+	}
+
 	//Memory handlers
 	http.HandleFunc("/api/mem/add", addMem)
 	http.HandleFunc("/api/mem/getdef", getDefMem)
@@ -79,7 +91,11 @@ func main() {
 	http.HandleFunc("/api/disk/add", addFiles)
 	http.HandleFunc("/api/disk/getdef", getDefFiles)
 	http.HandleFunc("/api/disk/getact",getActFiles)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+
+	//Start web server
+	lisock := fmt.Sprintf("%s:%s",ip,port)
+	log.Printf("Starting web server on: %s",lisock)
+	log.Fatal(http.ListenAndServe(lisock, nil))
 }
 
 //Free the concurrency memory lock. It's a function so it can be deferred
@@ -204,6 +220,46 @@ func getfreeDisk(dir string) (uint64, error) {
 		return 0, err
 	}
 	return fstats.Bavail * uint64(fstats.Bsize), nil
+}
+
+//Create a single directory
+func createDir(dirname string) error {
+	err := os.Mkdir(dirname,0755)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			fin, errin := os.Stat(dirname)
+			if errin == nil && fin.IsDir() { //Directory already exists, that's fine
+				return nil
+			} else {//Error creating directory
+				log.Printf("createDir(): Out error: %s; In error: %s", err,errin)
+				return err
+			}
+		} else { //Error creating directory
+			return err
+		}
+	}
+	return nil
+}
+
+//Creates the directory tree to store files
+func createTree(fc partdisk.FileCollection) error {
+	log.Printf("Creating base dir: %s",fc.GetRandStr())
+	err := createDir(fc.GetRandStr())
+	if err != nil {
+		log.Printf("Error creating basedir: %s", fc.GetRandStr())
+		return err
+	} else {//Base dir created, create subdirs
+		for _,size := range fc.GetFileSizes() {
+			subdir := fmt.Sprintf("%s/d-%d", fc.GetRandStr(), size)
+			log.Printf("\tcreateSubDirs(): creating %s\n",subdir)
+			err = createDir(subdir)
+			if err != nil {
+				log.Printf("Error creating subdir: %s", subdir)
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 //Request the definition of files

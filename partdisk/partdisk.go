@@ -1,7 +1,6 @@
 package partdisk
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -31,6 +30,16 @@ type FileCollection struct {
 	frandi string
 }
 
+//Get FileCollection random string
+func (fc FileCollection) GetRandStr() string {
+	return fc.frandi
+}
+
+//Get FileCollection fileSizes
+func (fc FileCollection) GetFileSizes() []uint64 {
+	return fc.fileSizes
+}
+
 //Initializes a FileCollection struct
 func (fc *FileCollection) NewfC(basedir string) {
 	//                      512Kb   2Mb      8Mb      32Mb      128Mb
@@ -47,46 +56,6 @@ func randstring(size uint64) string {
 		rval[i]=byte(rand.Intn(26) + 97)
 	}
 	return string(rval)
-}
-
-//Create a single directory
-func createDir(dirname string) error {
-	err := os.Mkdir(dirname,0755)
-	if err != nil {
-		if errors.Is(err, os.ErrExist) {
-			fin, errin := os.Stat(dirname)
-			if errin == nil && fin.IsDir() { //Directory already exists, that's fine
-				return nil
-			} else {//Error creating directory
-				log.Printf("createDir(): Out error: %s; In error: %s", err,errin)
-				return err
-			}
-		} else { //Error creating directory
-			return err
-		}
-	}
-	return nil
-}
-
-//Creates the directory tree to store files
-func createTree(fc *FileCollection) error {
-	log.Printf("Creating base dir: %s",fc.frandi)
-	err := createDir(fc.frandi)
-	if err != nil {
-		log.Printf("Error creating basedir: %s", fc.frandi)
-		return err
-	} else {//Base dir created, create subdirs
-		for _,size := range fc.fileSizes {
-			subdir := fmt.Sprintf("%s/d-%d", fc.frandi, size)
-			log.Printf("\tcreateSubDirs(): creating %s\n",subdir)
-			err = createDir(subdir)
-			if err != nil {
-				log.Printf("Error creating subdir: %s", subdir)
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 //Get the total number of bytes used up by the files already created
@@ -116,13 +85,13 @@ func DefineFiles(tsize uint64, hilimit uint64, flS *FileCollection) error {
 		log.Printf("DefineFiles(): Error computing total file size: %s", err.Error())
 		return err
 	}
-	if (tsize > tfs && tsize > hilimit) || tsize == 0 { //Trying to add files, the total size exceeds the limit; or the requested size is 0
+	if (tsize > tfs && tsize > hilimit) { //Trying to add files and the total size exceeds the limit
 		return fmt.Errorf("Invalid total size %d.  High limit is %d bytes.", tsize, hilimit)
 	}
 	for index, fsize := range flS.fileSizes {
 		nfiles = tsize / fsize
 		remain = tsize % fsize
-		if nfiles > limitFiles { //Keep adding more parts
+		if nfiles > limitFiles { //Use all files of this size, keep adding more files of higher capacities
 			tsize -= limitFiles * fsize
 			flS.fileAmmount[index] = limitFiles
 		} else if nfiles == 0 {
@@ -203,20 +172,14 @@ func CreateFiles(fS *FileCollection, ts int64, filelock chan int64) {
 				filelock <- 0 //Release lock
 			}()
 			lt = time.Now() //Start counting how long does the parts creation take
-			log.Printf("partmem.CreateParts(): lock obtained, timestamps match: %d\n",ts)
+			log.Printf("CreateFiles(): lock obtained, timestamps match: %d\n",ts)
 		} else {
-			log.Printf("partmem.CreateParts(): lock obtained, but timestamps missmatch: %d - %d\n", ts,chts)
+			log.Printf("CreateFiles(): lock obtained, but timestamps missmatch: %d - %d\n", ts,chts)
 			filelock <- chts
 			return
 		}
 	}
 	//Lock obtained proper, create/delete the files
-	err = createTree(fS)
-	if err != nil {
-		log.Printf("CreateFiles(): Error creating directory tree: %s\n%s\n",fS.frandi,err.Error())
-		return
-	}
-	//Directory tree created, now for the files
 	err = adrefiles(fS)
 	if err != nil {
 		log.Printf("CreateFiles(): Error creating file: %s\n",err.Error())
