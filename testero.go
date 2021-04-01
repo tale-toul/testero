@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strconv"
 	"syscall"
 	"time"
@@ -60,6 +61,11 @@ func setEnvNum(evv string) uint64 {
 func main() {
 	var err error
 
+	//Channel and gorutine to handle TERM and INT Operating System signals gracefully
+	sigs := make(chan os.Signal,1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go gracefulShutdown(sigs)
+
 	//Initialize memory lock
 	lock = make(chan int64, 1)
 	lock <- 0
@@ -108,6 +114,9 @@ func main() {
 	lisock := fmt.Sprintf("%s:%s",ip,port)
 	log.Printf("Starting web server on: %s",lisock)
 	log.Fatal(http.ListenAndServe(lisock, nil))
+	//Delete all files before exiting
+	log.Printf("Deleting all files at %s",fileScheme.GetRandStr())
+	deleteTree((&fileScheme))
 }
 
 //Free the concurrency memory lock. It's a function so it can be deferred
@@ -274,6 +283,18 @@ func createTree(fc partdisk.FileCollection) error {
 	return nil
 }
 
+//Removes the directory tree and all its contents.  This function is to be called as part of program graceful shutdown.
+func deleteTree(fc *partdisk.FileCollection) error {
+	log.Printf("Deleting directory tree: %s", fc.GetRandStr())
+	err := os.RemoveAll(fc.GetRandStr())
+	if err != nil {
+		log.Printf("deleteTree(): error deleting directory tree: %s.  Filecollection will be inconsistent",fc.GetRandStr())
+		return err
+	}
+	fc.NewfC(DATADIR)
+	return nil
+}
+
 //Request the definition of files
 func addFiles(writer http.ResponseWriter, request *http.Request) {
 	tstamp := time.Now().UnixNano() //Request timestamp
@@ -353,5 +374,18 @@ func getActFiles(writer http.ResponseWriter, request *http.Request) {
 		defer freeLock(filelock, &unlock) //Make sure the lock is released even if error occur
 		mensj := fileScheme.GetActFiles()
 		fmt.Fprintf(writer, mensj)
+	}
+}
+
+//Takes care of cleaning up when the application is terminated by a TERM or INT signal
+func gracefulShutdown(sigchan chan os.Signal) {
+	wait := <- sigchan
+	log.Printf("Signal received: %v",wait)
+	err := deleteTree(&fileScheme)
+	if err != nil {
+		log.Printf("Error shuting down: %s",err.Error())
+		os.Exit(1)
+	} else {
+		os.Exit(0)
 	}
 }
