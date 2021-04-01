@@ -85,7 +85,7 @@ func DefineFiles(tsize uint64, hilimit uint64, flS *FileCollection) error {
 		log.Printf("DefineFiles(): Error computing total file size: %s", err.Error())
 		return err
 	}
-	if (tsize > tfs && tsize > hilimit) { //Trying to add files and the total size exceeds the limit
+	if tsize > tfs && tsize > hilimit { //Trying to add files and the total size exceeds the limit
 		return fmt.Errorf("Invalid total size %d.  High limit is %d bytes.", tsize, hilimit)
 	}
 	for index, fsize := range flS.fileSizes {
@@ -227,7 +227,7 @@ func adrefiles(fS *FileCollection) error {
 		if tfsize > rqsize { //Need to remove files
 			deltasize = tfsize - rqsize
 			fdelta = deltasize / value
-			log.Printf("Need to remove %d bytes, %d files of size %d",deltasize,fdelta,value)
+			log.Printf("- Need to remove %d bytes, %d files of size %d",deltasize,fdelta,value)
 			for n:=0;n<int(fdelta);n++{
 				filename := fmt.Sprintf("%s/d-%d/f-%d",fS.frandi,value,int(lastfnum)-n)
 				err = os.Remove(filename)
@@ -239,7 +239,7 @@ func adrefiles(fS *FileCollection) error {
 		} else if tfsize < rqsize { //Need to create files
 			deltasize = rqsize - tfsize
 			fdelta = deltasize / value
-			log.Printf("Need to add %d bytes, %d files of size %d",deltasize,fdelta,value)
+			log.Printf("+ Need to add %d bytes, %d files of size %d",deltasize,fdelta,value)
 			for n:=1;n<=int(fdelta);n++ {
 				filename := fmt.Sprintf("%s/d-%d/f-%d",fS.frandi,value,n+int(lastfnum))
 				err = newFile(filename,value)
@@ -249,7 +249,7 @@ func adrefiles(fS *FileCollection) error {
 				}
 			}
 		} else { //No need to add or remove anything 
-			log.Printf("No need to add or remove any files")
+			log.Printf("= No need to add or remove any files")
 		}
 	}
 	return nil

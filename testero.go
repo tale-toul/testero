@@ -58,6 +58,8 @@ func setEnvNum(evv string) uint64 {
 }
 
 func main() {
+	var err error
+
 	//Initialize memory lock
 	lock = make(chan int64, 1)
 	lock <- 0
@@ -72,12 +74,22 @@ func main() {
 	if DATADIR == "" {
 		DATADIR = "."
 	}
+	//Set the high limit for the total file size requests
+	if HIGHFILELIM == 0 {
+		HIGHFILELIM, err = getfreeDisk(DATADIR)
+		if err != nil {
+			fmt.Printf("Error computing available disk space for directory: %s\n%s\n", DATADIR, err.Error())
+			return
+		} else {
+			log.Printf("HIGHFILElIM set to: %d bytes.",HIGHFILELIM)
+		}
+	}
 
 	//Create objects for memory and files
 	partScheme = partmem.NewpC()
 	fileScheme.NewfC(DATADIR)
 
-	err := createTree(fileScheme)
+	err = createTree(fileScheme)
 	if err != nil {
 		log.Printf("CreateFiles(): Error creating directory tree: %s\n%s\n",fileScheme.GetRandStr(),err.Error())
 		return
@@ -288,14 +300,6 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 			}
 		} else { //No size specified
 			fmt.Fprintf(writer, "No data size specified\n")
-			tstamp = 0
-			return
-		}
-
-		//Set the high limit for the total size to request
-		HIGHFILELIM, err = getfreeDisk(DATADIR)
-		if err != nil {
-			fmt.Fprintf(writer, "Error computing available disk space for directory: %s\n%s\n", DATADIR, err.Error())
 			tstamp = 0
 			return
 		}
