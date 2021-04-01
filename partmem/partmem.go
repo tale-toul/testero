@@ -47,6 +47,18 @@ func (pc PartCollection) GetActParts() string {
 	return mensj
 }
 
+//Computes the total size in bytes used up by the momory parts
+func (pc PartCollection) sizeOfParts() uint64 {
+	var tmsize uint64
+	for _, value := range pc.partLists { //For every list of parts of each size
+		for value != nil { //Sum up the actual parts size
+			tmsize += uint64(len(value.data))
+			value = value.next
+		}
+	}
+	return tmsize
+}
+
 //Creates a new instance of partCollection.  No need to initialize lid
 func NewpC() PartCollection {
 	var pC PartCollection
@@ -62,9 +74,11 @@ func NewpC() PartCollection {
 //tsize is the number of bytes to partition
 //hilimit is the maximum number of bytes allowed to partition
 func DefineParts(tsize uint64, hilimit uint64, ptS *PartCollection) error {
-	var nparts, remain uint64
+	var nparts, remain, usedSize uint64
 
-	if tsize > hilimit {
+	usedSize = ptS.sizeOfParts() //The memory being used up at the moment
+
+	if tsize > usedSize && tsize > hilimit { //If the requested size bigger than the currently used memory, and the increment is bigger than the limit
 		return fmt.Errorf("Invalid total size %d.  High limit is %d bytes.", tsize, hilimit)
 	}
 	for index, psize := range ptS.partSizes {
