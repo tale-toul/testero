@@ -9,3 +9,5 @@
 * Creation of data for memory parts and files should be redisigned to reduce CPU usage. 
 
 * Add functionality to request CPU load for a certain time in seconds
+
+* Create a simple web interface to call the API endpoints
