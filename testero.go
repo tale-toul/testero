@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"errors"
+	"github.com/tale-toul/testero/cpuload"
 	"github.com/tale-toul/testero/partdisk"
 	"github.com/tale-toul/testero/partmem"
 	"log"
@@ -27,9 +28,10 @@ var fileScheme partdisk.FileCollection
 
 //Lock buffered, to make sure there is no concurrency problems with memory operations
 var lock chan int64
-
 //Lock buffered, to facilitate disk operations
 var filelock chan int64
+//Lock buffered, to avoid cpu load concurrent requests
+var cpulock chan int64
 
 //Environment variable to set the limit for request to add data into memory.  In bytes
 var HIGHMEMLIM uint64
@@ -72,6 +74,9 @@ func main() {
 	//Initialize file lock
 	filelock = make(chan int64, 1)
 	filelock <- 0
+	//Initilize cpu lock
+	cpulock = make(chan int64, 1)
+	cpulock <- 0
 
 	//Get values from environment variables, if they exist
 	HIGHMEMLIM = setEnvNum("HIGHMEMLIM")
@@ -109,6 +114,8 @@ func main() {
 	http.HandleFunc("/api/disk/add", addFiles)
 	http.HandleFunc("/api/disk/getdef", getDefFiles)
 	http.HandleFunc("/api/disk/getact",getActFiles)
+	//CPU handlers
+	http.HandleFunc("/api/cpu/load", addLoad)
 
 	//Start web server
 	lisock := fmt.Sprintf("%s:%s",ip,port)
@@ -125,13 +132,12 @@ func freeLock(l chan int64, value *int64) {
 	l <- *value
 }
 
-//Attemps to get hold of the memory lock
+//Attemps to get hold of the lock associated with the channel passed as a parameter
 func getLock(l chan int64) (int64, bool) {
 	select {
 	case r := <-l:
 		return r, true
-	default:
-		//Lock not available return
+	default: //Lock not available return
 		return 0, false
 	}
 }
@@ -302,13 +308,13 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 	if !islav { //Lock not available
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
-	} else if lval != 0 { //There is a pending request for mem allocation
+	} else if lval != 0 { //There is a pending request for file creation
 		defer freeLock(filelock, &lval)
 		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
 		time.Sleep(1 * time.Second)
 		return
 	} else { //Lock is available and no pending requests (0)
-		defer freeLock(filelock, &tstamp) //Make sure the lock is released even if errors occur
+		defer freeLock(filelock, &tstamp) //Make sure the lock is released even if errors happen
 		bsm := request.URL.Query().Get("size")
 		var sm uint64 //Requested size in bytes
 		var err error
@@ -389,3 +395,37 @@ func gracefulShutdown(sigchan chan os.Signal) {
 		os.Exit(0)
 	}
 }
+
+//Add CPU load to the systeM. Full throttle during specified time
+func addLoad(writer http.ResponseWriter, request *http.Request) {
+	tstamp := time.Now().UnixNano() //Request timestamp
+	lval, islav := getLock(cpulock)
+	if !islav { //Lock not available
+		fmt.Fprintf(writer, "Server busy, try again later\n")
+		return
+	} else if lval != 0 { //There is a pending request for cpu load
+		defer freeLock(cpulock, &lval)
+		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
+		time.Sleep(1 * time.Second)
+		return
+	} else { //Lock is available and no pending requests (0)
+		defer freeLock(cpulock, &tstamp) //Make sure the lock is released even if errors happen
+		bsm := request.URL.Query().Get("time")
+		var sm uint64 //Requested time in seconds
+		var err error
+		if bsm != "" {
+			sm, err = strconv.ParseUint(bsm, 10, 64)
+			if err != nil {
+				fmt.Fprintf(writer, "Invalid time specification: %s\n", err.Error())
+				tstamp = 0
+				return
+			}
+		} else { //No time specified
+			fmt.Fprintf(writer, "No load time specified\n")
+			tstamp = 0
+			return
+		}
+		go cpuload.LoadUp(tstamp, sm, cpulock)
+		fmt.Fprintf(writer,"CPU load requested for %d seconds\n",sm)
+	}
+}	
