@@ -148,6 +148,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 	tstamp := time.Now().UnixNano() //Request timestamp
 	lval, islav := getLock(lock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
@@ -163,11 +164,13 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 		if bsm != "" {
 			sm, err = strconv.ParseUint(bsm, 10, 64)
 			if err != nil {
+				time.Sleep(1 * time.Second)
 				fmt.Fprintf(writer, "Could not get size: %s\n", err.Error())
 				tstamp = 0
 				return
 			}
 		} else { //No size specified
+			time.Sleep(1 * time.Second)
 			fmt.Fprintf(writer, "File size (in bytes) not specified: add?size=<number of bytes>\n")
 			tstamp = 0
 			return
@@ -182,6 +185,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 		//The result is stored in partScheme
 		err = partmem.DefineParts(sm, HIGHMEMLIM, &partScheme)
 		if err != nil {
+			time.Sleep(1 * time.Second)
 			fmt.Fprintf(writer, "Could not compute mem parts: %s\n", err.Error())
 			tstamp = 0
 			return
@@ -196,6 +200,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 func getDefMem(writer http.ResponseWriter, request *http.Request) {
 	lval, islav := getLock(lock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
@@ -215,6 +220,7 @@ func getDefMem(writer http.ResponseWriter, request *http.Request) {
 func getActMem(writer http.ResponseWriter, request *http.Request) {
 	lval, islav := getLock(lock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
@@ -307,6 +313,7 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 	tstamp := time.Now().UnixNano() //Request timestamp
 	lval, islav := getLock(filelock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for file creation
@@ -322,11 +329,13 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 		if bsm != "" {
 			sm, err = strconv.ParseUint(bsm, 10, 64)
 			if err != nil {
+				time.Sleep(1 * time.Second)
 				fmt.Fprintf(writer, "Could not get size: %s\n", err.Error())
 				tstamp = 0
 				return
 			}
 		} else { //No size specified
+			time.Sleep(1 * time.Second)
 			fmt.Fprintf(writer, "No data size specified\n")
 			tstamp = 0
 			return
@@ -336,6 +345,7 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 		//The result is stored in partScheme
 		err = partdisk.DefineFiles(sm, HIGHFILELIM, &fileScheme)
 		if err != nil {
+			time.Sleep(1 * time.Second)
 			fmt.Fprintf(writer, "Could not compute file distribution: %s\n", err.Error())
 			tstamp = 0
 			return
@@ -350,6 +360,7 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 func getDefFiles(writer http.ResponseWriter, request *http.Request) {
 	lval, islav := getLock(filelock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for file allocation
@@ -369,6 +380,7 @@ func getDefFiles(writer http.ResponseWriter, request *http.Request) {
 func getActFiles(writer http.ResponseWriter, request *http.Request) {
 	lval, islav := getLock(filelock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
