@@ -116,6 +116,7 @@ func main() {
 	http.HandleFunc("/api/disk/getact",getActFiles)
 	//CPU handlers
 	http.HandleFunc("/api/cpu/load", addLoad)
+	http.HandleFunc("/api/cpu/stop", stopLoad)
 
 	//Start web server
 	lisock := fmt.Sprintf("%s:%s",ip,port)
@@ -401,6 +402,7 @@ func addLoad(writer http.ResponseWriter, request *http.Request) {
 	tstamp := time.Now().UnixNano() //Request timestamp
 	lval, islav := getLock(cpulock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for cpu load
@@ -426,6 +428,36 @@ func addLoad(writer http.ResponseWriter, request *http.Request) {
 			return
 		}
 		go cpuload.LoadUp(tstamp, sm, cpulock)
-		fmt.Fprintf(writer,"CPU load requested for %d seconds\n",sm)
+		fmt.Fprintf(writer,"CPU load requested for %d seconds with id: %d\n",sm,tstamp)
 	}
 }	
+
+//Stops the CPU load if there is a request being run and the ID matches
+func stopLoad(writer http.ResponseWriter, request *http.Request) {
+	var id int64
+	var err error
+
+	lval, islav := getLock(cpulock)
+	if !islav { //Lock not available, there is a load request being served
+		cid := request.URL.Query().Get("id")
+		if cid != "" {
+			id, err = strconv.ParseInt(cid, 10, 64)
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				fmt.Fprintf(writer, "Invalid ID specification: %s\n", err.Error())
+				return
+			}
+		} else { //No ID specified
+			time.Sleep(1 * time.Second)
+			fmt.Fprintf(writer, "No request ID specified\n")
+			return
+		}
+		mensj := cpuload.StopLoad(id)
+		fmt.Fprintf(writer, mensj)
+	} else { //Lock available, nothing to do
+		defer freeLock(cpulock,&lval)
+		fmt.Fprintf(writer, "No load request being processed, nothing to do\n")
+		time.Sleep(1 * time.Second)
+		return
+	}
+}

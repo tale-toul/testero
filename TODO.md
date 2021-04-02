@@ -12,6 +12,6 @@
 
 * Create a simple web interface to call the API endpoints
 
-* Add an API endpoint to stop the CPU load inmediately
+* Add an API endpoint to stop the CPU load inmediately (DONE)
 
 * Add an environment variable to allow the configuration of the number to be factorized to generate CPU load

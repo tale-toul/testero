@@ -1,6 +1,7 @@
 package cpuload
 
 import (
+	"fmt"
 	"log"
 	"math/big"
 	"time"
@@ -10,6 +11,15 @@ import (
 //const bfn string = "1234567890723456781" //Shorter and faster number
 //const bfn string = "493440589722495010971" //Requires more than 10 min to factor [3,164480196574165003657]
 const bfn string = "493440589722494743501" //Requires more than 15 min to factor, prime number
+
+//Last accepted request id
+var clid int64
+
+//Locking and communication channels
+var foundFactors chan []*big.Int
+var quit chan bool
+
+
 func LoadUp(ts int64, duration uint64, lock chan int64) {
 	select {
 	case <- time.After(5 * time.Second): //If 5 seconds pass without getting the proper lock, abort
@@ -17,6 +27,7 @@ func LoadUp(ts int64, duration uint64, lock chan int64) {
 		return
 	case chts := <- lock:
 		if chts == ts { //Got the lock and it matches the timestamp received, proceed
+			clid = ts
 			defer func(){
 				lock <- 0 //Release lock
 			}()
@@ -28,8 +39,6 @@ func LoadUp(ts int64, duration uint64, lock chan int64) {
 		}
 	}
 
-	var foundFactors chan []*big.Int
-	var quit chan bool
 	var returnedFactors []*big.Int
 	var bNum *big.Int
 	var bigSuccess bool
@@ -39,7 +48,7 @@ func LoadUp(ts int64, duration uint64, lock chan int64) {
 	bNum, bigSuccess = new(big.Int).SetString(bfn, 10)
 	if bigSuccess {
 		log.Printf("Load CPU for %d seconds factoring number: %d", duration,bNum)
-		go factor(bNum,foundFactors,quit)
+		go factor(bNum)
 		select {
 		case <- time.After(time.Duration(duration) * time.Second):
 			log.Printf("CPU high load for %d seconds elapsed",duration)
@@ -53,7 +62,7 @@ func LoadUp(ts int64, duration uint64, lock chan int64) {
 }
 
 // Finds the factors of inNum
-func factor(inNum *big.Int, fachan chan<- []*big.Int, quit <-chan bool) {
+func factor(inNum *big.Int) {
 	//Candidate factors
 	c := big.NewInt(2)
 	//List of found factors
@@ -70,7 +79,7 @@ func factor(inNum *big.Int, fachan chan<- []*big.Int, quit <-chan bool) {
 	// Zero is not a valid number to factorize
 	if inNum.Cmp(zero) == 0 {
 		log.Printf("cpuload.factor(): Invalid argument 0")
-		fachan <- outFactors //Returns an empty slice
+		foundFactors <- outFactors //Returns an empty slice
 		return
 	}
 	topc.Sqrt(inNum)
@@ -90,8 +99,8 @@ func factor(inNum *big.Int, fachan chan<- []*big.Int, quit <-chan bool) {
 	for c.Cmp(topc) != 1  {   // While c <= topc
 		select {
 		case <-quit:
-			log.Printf("cpuload.Factor(): Quiting early, timeout signal")
-			fachan <- outFactors
+			log.Printf("cpuload.Factor(): Quiting early, external signal")
+			foundFactors <- outFactors
 			return
 		default: //Keep factoring
 			tempDm, modulus = tempDm.DivMod(inNum, c, modulus)
@@ -105,5 +114,18 @@ func factor(inNum *big.Int, fachan chan<- []*big.Int, quit <-chan bool) {
 		}
 	}	
 	outFactors = append(outFactors, inNum) //No need to make a copy because it is the last one
-	fachan <- outFactors
+	foundFactors <- outFactors
+}
+
+//Stops the current factoring of a number if the ID requested match
+func StopLoad(id int64) string {
+	if id != clid { //IDs don't match, go away
+		log.Printf("cpuload.StopLoad(): Stop request ID (%d) does not match last load request ID (%d)",id,clid)
+		time.Sleep(1 * time.Second)
+		return fmt.Sprintf("Incorrect stop load request ID (%d)\n",id)
+	} else { //IDs match
+		log.Printf("cpuload.StopLoad(): IDs match, stoping CPU load")
+		quit <- true
+		return fmt.Sprintf("CPU load stopped\n")
+	}
 }
