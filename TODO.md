@@ -6,6 +6,8 @@
 
 * Add an API endpoint to stop the CPU load inmediately (DONE)
 
+* Add an environment variable to allow the configuration of the number to be factorized to generate CPU load (DONE)
+
 ## TODO List
 
 * Variable HIGHMEMLIM needs to be defined only at the beggining of the program execution, similar to how HIGHFILELIM is dealt with
@@ -15,8 +17,6 @@
 * Creation of data for memory parts and files should be redisigned to reduce CPU usage. 
 
 * Create a simple web interface to call the API endpoints
-
-* Add an environment variable to allow the configuration of the number to be factorized to generate CPU load
 
 * Add environment var to define IP and PORT where the web server will listen on
 
