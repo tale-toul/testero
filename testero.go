@@ -80,16 +80,21 @@ func main() {
 	if DATADIR == "" {
 		DATADIR = "."
 	}
+	log.Printf("DATADIR set to: %s",DATADIR)
+	//Set the high limit for the total size to request
+	if HIGHMEMLIM == 0 { //Not defined
+		HIGHMEMLIM = freeRam()
+	}
+	log.Printf("HIGHMEMLIM set to: %d bytes.",HIGHMEMLIM)
 	//Set the high limit for the total file size requests
 	if HIGHFILELIM == 0 {
 		HIGHFILELIM, err = getfreeDisk(DATADIR)
 		if err != nil {
 			fmt.Printf("Error computing available disk space for directory: %s\n%s\n", DATADIR, err.Error())
 			return
-		} else {
-			log.Printf("HIGHFILElIM set to: %d bytes.",HIGHFILELIM)
 		}
 	}
+	log.Printf("HIGHFILELIM set to: %d bytes.",HIGHFILELIM)
 
 	//Create objects for memory and files
 	partScheme = partmem.NewpC()
@@ -164,11 +169,6 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 			fmt.Fprintf(writer, "File size (in bytes) not specified: add?size=<number of bytes>\n")
 			tstamp = 0
 			return
-		}
-
-		//Set the high limit for the total size to request
-		if HIGHMEMLIM == 0 { //Not defined
-			HIGHMEMLIM = freeRam()
 		}
 
 		//Compute the number of parts of each size to accomodate the total size.
