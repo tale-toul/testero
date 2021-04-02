@@ -20,11 +20,17 @@ const ip string = "0.0.0.0"
 //Listening port for web server
 const port string = "8080"
 
+//const defnum string = "49344058972249501099" //Requires more than 5 min, prime number
+//const defnum string = "1234567890723456781" //Shorter and faster number
+//const defnum string = "493440589722495010971" //Requires more than 10 min to factor [3,164480196574165003657]
+const defnum string = "493440589722494743501" //Requires more than 15 min to factor, prime number
+
 //Data structure with memory part definitions and data
 var partScheme partmem.PartCollection
-
 //Data structure with files definitions
 var fileScheme partdisk.FileCollection
+//Data structure containing info about CPU load
+var cpuScheme cpuload.CpuCollection
 
 //Lock buffered, to make sure there is no concurrency problems with memory operations
 var lock chan int64
@@ -35,14 +41,14 @@ var cpulock chan int64
 
 //Environment variable to set the limit for request to add data into memory.  In bytes
 var HIGHMEMLIM uint64
-
 //Environment var to set the limit of storage space, in bytes.
 var HIGHFILELIM uint64
-
 //Env var specifying the directory to store files
 var DATADIR string
+//Env var containing the number to factor to generate CPU load
+var NUMTOFACTOR string
 
-//Attempt to get the value for memory limit from HIGHMEMLIM environment variable
+//Get the value from env var with name evv and convert it to a unsigned integer 
 func setEnvNum(evv string) uint64 {
 	var errnv error
 	var envalue uint64
@@ -85,6 +91,8 @@ func main() {
 	if DATADIR == "" {
 		DATADIR = "."
 	}
+	NUMTOFACTOR = os.Getenv("NUMTOFACTOR")
+
 	//Set the high limit for the total file size requests
 	if HIGHFILELIM == 0 {
 		HIGHFILELIM, err = getfreeDisk(DATADIR)
@@ -95,10 +103,15 @@ func main() {
 			log.Printf("HIGHFILElIM set to: %d bytes.",HIGHFILELIM)
 		}
 	}
+	//Set the number to factor, used to generate CPU load
+	if NUMTOFACTOR == "" { //if Env var not defined, assign the default number
+		NUMTOFACTOR = defnum
+	}
 
-	//Create objects for memory and files
+	//Create objects for memory, files and CPU load
 	partScheme = partmem.NewpC()
 	fileScheme.NewfC(DATADIR)
+	cpuScheme.NewCc(NUMTOFACTOR)
 
 	err = createTree(fileScheme)
 	if err != nil {
@@ -439,7 +452,7 @@ func addLoad(writer http.ResponseWriter, request *http.Request) {
 			tstamp = 0
 			return
 		}
-		go cpuload.LoadUp(tstamp, sm, cpulock)
+		go cpuload.LoadUp(&cpuScheme, tstamp, sm, cpulock)
 		fmt.Fprintf(writer,"CPU load requested for %d seconds with id: %d\n",sm,tstamp)
 	}
 }	
@@ -464,7 +477,7 @@ func stopLoad(writer http.ResponseWriter, request *http.Request) {
 			fmt.Fprintf(writer, "No request ID specified\n")
 			return
 		}
-		mensj := cpuload.StopLoad(id)
+		mensj := cpuload.StopLoad(cpuScheme, id)
 		fmt.Fprintf(writer, mensj)
 	} else { //Lock available, nothing to do
 		defer freeLock(cpulock,&lval)

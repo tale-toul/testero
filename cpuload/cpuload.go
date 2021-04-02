@@ -7,27 +7,36 @@ import (
 	"time"
 )
 
-//const bfn string = "49344058972249501099" //Requires more than 5 min, prime number
-//const bfn string = "1234567890723456781" //Shorter and faster number
-//const bfn string = "493440589722495010971" //Requires more than 10 min to factor [3,164480196574165003657]
-const bfn string = "493440589722494743501" //Requires more than 15 min to factor, prime number
-
-//Last accepted request id
-var clid int64
+//Contains information about the CPU load task
+type CpuCollection struct {
+	clid int64
+	bfn *big.Int
+}
 
 //Locking and communication channels
 var foundFactors chan []*big.Int
 var quit chan bool
 
+//Initialize a CpuCollection object
+func (cc *CpuCollection) NewCc(numtofactor string) {
+	var bigSuccess bool
 
-func LoadUp(ts int64, duration uint64, lock chan int64) {
+	cc.clid = 0 //To make it explicit
+	cc.bfn, bigSuccess = new(big.Int).SetString(numtofactor, 10)
+	if !bigSuccess  {
+		panic("Invalid number to factor: NUMTOFACTOR="+ numtofactor)
+	}
+}
+
+//Start a timer and launch the load generator, wait for the quickest to end
+func LoadUp(cS *CpuCollection, ts int64, duration uint64, lock chan int64) {
 	select {
 	case <- time.After(5 * time.Second): //If 5 seconds pass without getting the proper lock, abort
 		log.Printf("cpuload.LoadUp(): timeout waiting for lock")
 		return
 	case chts := <- lock:
 		if chts == ts { //Got the lock and it matches the timestamp received, proceed
-			clid = ts
+			cS.clid = ts
 			defer func(){
 				lock <- 0 //Release lock
 			}()
@@ -40,24 +49,17 @@ func LoadUp(ts int64, duration uint64, lock chan int64) {
 	}
 
 	var returnedFactors []*big.Int
-	var bNum *big.Int
-	var bigSuccess bool
 
 	foundFactors = make(chan []*big.Int,1)
 	quit = make(chan bool,1)
-	bNum, bigSuccess = new(big.Int).SetString(bfn, 10)
-	if bigSuccess {
-		log.Printf("Load CPU for %d seconds factoring number: %d", duration,bNum)
-		go factor(bNum)
-		select {
-		case <- time.After(time.Duration(duration) * time.Second):
-			log.Printf("CPU high load for %d seconds elapsed",duration)
-			quit <- true
-		case returnedFactors = <-foundFactors:
-			log.Printf("Factors found: %v", returnedFactors)
-		}
-	} else {
-		log.Printf("cpuload.LoadUp(): Invalid input number: %s",bfn)
+	log.Printf("Load CPU for %d seconds factoring number: %d", duration,cS.bfn)
+	go factor(cS.bfn)
+	select {
+	case <- time.After(time.Duration(duration) * time.Second):
+		log.Printf("CPU high load for %d seconds elapsed",duration)
+		quit <- true
+	case returnedFactors = <-foundFactors:
+		log.Printf("Factors found: %v", returnedFactors)
 	}
 }
 
@@ -118,9 +120,9 @@ func factor(inNum *big.Int) {
 }
 
 //Stops the current factoring of a number if the ID requested match
-func StopLoad(id int64) string {
-	if id != clid { //IDs don't match, go away
-		log.Printf("cpuload.StopLoad(): Stop request ID (%d) does not match last load request ID (%d)",id,clid)
+func StopLoad(cS CpuCollection, id int64) string {
+	if id != cS.clid { //IDs don't match, go away
+		log.Printf("cpuload.StopLoad(): Stop request ID (%d) does not match last load request ID (%d)",id,cS.clid)
 		time.Sleep(1 * time.Second)
 		return fmt.Sprintf("Incorrect stop load request ID (%d)\n",id)
 	} else { //IDs match
