@@ -15,3 +15,5 @@
 * Add an API endpoint to stop the CPU load inmediately (DONE)
 
 * Add an environment variable to allow the configuration of the number to be factorized to generate CPU load
+
+* Add environment var to define IP and PORT where the web server will listen on
