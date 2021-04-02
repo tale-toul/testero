@@ -6,13 +6,14 @@ import (
 	"time"
 )
 
-const bfn string = "49344058972249501099"
+//const bfn string = "49344058972249501099" //Requires more than 5 min, prime number
 //const bfn string = "1234567890723456781" //Shorter and faster number
-
+//const bfn string = "493440589722495010971" //Requires more than 10 min to factor [3,164480196574165003657]
+const bfn string = "493440589722494743501" //Requires more than 15 min to factor, prime number
 func LoadUp(ts int64, duration uint64, lock chan int64) {
 	select {
 	case <- time.After(5 * time.Second): //If 5 seconds pass without getting the proper lock, abort
-		log.Printf("cpuload.LoadUp(): timeout waiting for lock\n")
+		log.Printf("cpuload.LoadUp(): timeout waiting for lock")
 		return
 	case chts := <- lock:
 		if chts == ts { //Got the lock and it matches the timestamp received, proceed
@@ -27,22 +28,32 @@ func LoadUp(ts int64, duration uint64, lock chan int64) {
 		}
 	}
 
-	var foundFactors []*big.Int
+	var foundFactors chan []*big.Int
+	var quit chan bool
+	var returnedFactors []*big.Int
 	var bNum *big.Int
 	var bigSuccess bool
 
+	foundFactors = make(chan []*big.Int,1)
+	quit = make(chan bool,1)
 	bNum, bigSuccess = new(big.Int).SetString(bfn, 10)
 	if bigSuccess {
-		log.Printf("Number to factor: %d", bNum)
-		foundFactors = factor(bNum)
-		log.Printf("Factors found: %v", foundFactors)
+		log.Printf("Load CPU for %d seconds factoring number: %d", duration,bNum)
+		go factor(bNum,foundFactors,quit)
+		select {
+		case <- time.After(time.Duration(duration) * time.Second):
+			log.Printf("CPU high load for %d seconds elapsed",duration)
+			quit <- true
+		case returnedFactors = <-foundFactors:
+			log.Printf("Factors found: %v", returnedFactors)
+		}
 	} else {
 		log.Printf("cpuload.LoadUp(): Invalid input number: %s",bfn)
 	}
 }
 
-// This function is intentionally ineficient
-func factor(inNum *big.Int) []*big.Int {
+// Finds the factors of inNum
+func factor(inNum *big.Int, fachan chan<- []*big.Int, quit <-chan bool) {
 	//Candidate factors
 	c := big.NewInt(2)
 	//List of found factors
@@ -51,7 +62,7 @@ func factor(inNum *big.Int) []*big.Int {
 	topc := new(big.Int)
 	tempDm := new(big.Int)
 	modulus := new(big.Int)
-	//Zero, One, Two big Int
+	//Zero, One, Two as big Int
 	zero := big.NewInt(0)
 	one := big.NewInt(1)
 	two := big.NewInt(2)
@@ -59,7 +70,8 @@ func factor(inNum *big.Int) []*big.Int {
 	// Zero is not a valid number to factorize
 	if inNum.Cmp(zero) == 0 {
 		log.Printf("cpuload.factor(): Invalid argument 0")
-		return nil
+		fachan <- outFactors //Returns an empty slice
+		return
 	}
 	topc.Sqrt(inNum)
 
@@ -76,15 +88,22 @@ func factor(inNum *big.Int) []*big.Int {
 		}
 	}
 	for c.Cmp(topc) != 1  {   // While c <= topc
-		tempDm, modulus = tempDm.DivMod(inNum, c, modulus)
-		if modulus.Cmp(zero) == 0 {
-			outFactors = append(outFactors, new(big.Int).Set(c))
-			inNum.Set(tempDm)
-			topc.Sqrt(inNum) 
-		} else {
-			c.Add(c,two) //c += 2
+		select {
+		case <-quit:
+			log.Printf("cpuload.Factor(): Quiting early, timeout signal")
+			fachan <- outFactors
+			return
+		default: //Keep factoring
+			tempDm, modulus = tempDm.DivMod(inNum, c, modulus)
+			if modulus.Cmp(zero) == 0 {
+				outFactors = append(outFactors, new(big.Int).Set(c))
+				inNum.Set(tempDm)
+				topc.Sqrt(inNum)
+			} else {
+				c.Add(c,two) //c += 2
+			}
 		}
 	}	
 	outFactors = append(outFactors, inNum) //No need to make a copy because it is the last one
-	return outFactors
+	fachan <- outFactors
 }
