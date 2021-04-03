@@ -130,6 +130,7 @@ func main() {
 	//CPU handlers
 	http.HandleFunc("/api/cpu/load", addLoad)
 	http.HandleFunc("/api/cpu/stop", stopLoad)
+	http.HandleFunc("/api/cpu/getact", loadReqInfo)
 
 	//Start web server
 	lisock := fmt.Sprintf("%s:%s",ip,port)
@@ -482,6 +483,26 @@ func stopLoad(writer http.ResponseWriter, request *http.Request) {
 	} else { //Lock available, nothing to do
 		defer freeLock(cpulock,&lval)
 		fmt.Fprintf(writer, "No load request being processed, nothing to do\n")
+		time.Sleep(1 * time.Second)
+		return
+	}
+}
+
+//Gets information about the current load request, if one is in progress
+func loadReqInfo(writer http.ResponseWriter, request *http.Request) {
+	lval, islav := getLock(cpulock)
+	if !islav { //Lock not available, there is a load request being served
+		start := cpuScheme.GetReqTime()
+		duration := cpuScheme.GetDuration()
+		reqt := fmt.Sprintf("Load request sent at: %v",start)
+		loadt := fmt.Sprintf("Load time requested: %d seconds",duration)
+		end := start.Add(time.Second * time.Duration(duration))
+		loadend := fmt.Sprintf("Load request ends at: %v", end)
+		time.Sleep(1 * time.Second)
+		fmt.Fprintf(writer,"%s\n%s\n%s\nNumber to factor: %s\n",reqt,loadt,loadend,NUMTOFACTOR)
+	} else { //Lock available, nothing to do
+		defer freeLock(cpulock,&lval)
+		fmt.Fprintf(writer,"No load request in progress\n")
 		time.Sleep(1 * time.Second)
 		return
 	}

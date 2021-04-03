@@ -8,6 +8,8 @@
 
 * Add an environment variable to allow the configuration of the number to be factorized to generate CPU load (DONE)
 
+* Add API cpu endpoint to return data about the current load request, if any: when was the request sent, the time requested, the NUMTOFACTOR in use.
+
 ## TODO List
 
 * Variable HIGHMEMLIM needs to be defined only at the beggining of the program execution, similar to how HIGHFILELIM is dealt with
@@ -22,8 +24,5 @@
 
 * Add https support
 
-* Require ID token to make requests
+* Require ID login token to make requests
 
-* Add API cpu endpoint to return the number to factor currently being used
-
-* Add API cpu endpoint to return data about the current load request, if any: when was the request sent, and the time requested

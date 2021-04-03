@@ -9,13 +9,25 @@ import (
 
 //Contains information about the CPU load task
 type CpuCollection struct {
-	clid int64
-	bfn *big.Int
+	clid int64  //latest request ID corresponds to the Unix time when the request was sent
+	lapse uint64 //latest request load time
+	bfn *big.Int //Number to factor
 }
 
 //Locking and communication channels
 var foundFactors chan []*big.Int
 var quit chan bool
+
+//Get latest request load time
+func (cc CpuCollection) GetDuration() uint64 {
+	return cc.lapse
+}
+
+//Get time when the request was made
+func (cc CpuCollection) GetReqTime() time.Time {
+	tsecs := cc.clid / 1000000000 
+	return time.Unix(tsecs,0)
+}
 
 //Initialize a CpuCollection object
 func (cc *CpuCollection) NewCc(numtofactor string) {
@@ -35,8 +47,9 @@ func LoadUp(cS *CpuCollection, ts int64, duration uint64, lock chan int64) {
 		log.Printf("cpuload.LoadUp(): timeout waiting for lock")
 		return
 	case chts := <- lock:
-		if chts == ts { //Got the lock and it matches the timestamp received, proceed
+		if chts == ts { //Got the lock and if it matches the timestamp received, proceed
 			cS.clid = ts
+			cS.lapse = duration
 			defer func(){
 				lock <- 0 //Release lock
 			}()
@@ -47,9 +60,7 @@ func LoadUp(cS *CpuCollection, ts int64, duration uint64, lock chan int64) {
 			return
 		}
 	}
-
 	var returnedFactors []*big.Int
-
 	foundFactors = make(chan []*big.Int,1)
 	quit = make(chan bool,1)
 	log.Printf("Load CPU for %d seconds factoring number: %d", duration,cS.bfn)
