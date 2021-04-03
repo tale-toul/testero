@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"errors"
+	"github.com/tale-toul/testero/cpuload"
 	"github.com/tale-toul/testero/partdisk"
 	"github.com/tale-toul/testero/partmem"
 	"log"
@@ -19,28 +20,35 @@ const ip string = "0.0.0.0"
 //Listening port for web server
 const port string = "8080"
 
+//const defnum string = "49344058972249501099" //Requires more than 5 min, prime number
+//const defnum string = "1234567890723456781" //Shorter and faster number
+//const defnum string = "493440589722495010971" //Requires more than 10 min to factor [3,164480196574165003657]
+const defnum string = "493440589722494743501" //Requires more than 15 min to factor, prime number
+
 //Data structure with memory part definitions and data
 var partScheme partmem.PartCollection
-
 //Data structure with files definitions
 var fileScheme partdisk.FileCollection
+//Data structure containing info about CPU load
+var cpuScheme cpuload.CpuCollection
 
 //Lock buffered, to make sure there is no concurrency problems with memory operations
 var lock chan int64
-
 //Lock buffered, to facilitate disk operations
 var filelock chan int64
+//Lock buffered, to avoid cpu load concurrent requests
+var cpulock chan int64
 
 //Environment variable to set the limit for request to add data into memory.  In bytes
 var HIGHMEMLIM uint64
-
 //Environment var to set the limit of storage space, in bytes.
 var HIGHFILELIM uint64
-
 //Env var specifying the directory to store files
 var DATADIR string
+//Env var containing the number to factor to generate CPU load
+var NUMTOFACTOR string
 
-//Attempt to get the value for memory limit from HIGHMEMLIM environment variable
+//Get the value from env var with name evv and convert it to a unsigned integer 
 func setEnvNum(evv string) uint64 {
 	var errnv error
 	var envalue uint64
@@ -72,6 +80,9 @@ func main() {
 	//Initialize file lock
 	filelock = make(chan int64, 1)
 	filelock <- 0
+	//Initilize cpu lock
+	cpulock = make(chan int64, 1)
+	cpulock <- 0
 
 	//Get values from environment variables, if they exist
 	HIGHMEMLIM = setEnvNum("HIGHMEMLIM")
@@ -81,11 +92,12 @@ func main() {
 		DATADIR = "."
 	}
 	log.Printf("DATADIR set to: %s",DATADIR)
-	//Set the high limit for the total size to request
+	//Set the high limit for memory the total size to request
 	if HIGHMEMLIM == 0 { //Not defined
 		HIGHMEMLIM = freeRam()
 	}
 	log.Printf("HIGHMEMLIM set to: %d bytes.",HIGHMEMLIM)
+	
 	//Set the high limit for the total file size requests
 	if HIGHFILELIM == 0 {
 		HIGHFILELIM, err = getfreeDisk(DATADIR)
@@ -96,9 +108,16 @@ func main() {
 	}
 	log.Printf("HIGHFILELIM set to: %d bytes.",HIGHFILELIM)
 
-	//Create objects for memory and files
+	//Set the number to factor, used to generate CPU load
+	NUMTOFACTOR = os.Getenv("NUMTOFACTOR")
+	if NUMTOFACTOR == "" { //if Env var not defined, assign the default number
+		NUMTOFACTOR = defnum
+	}
+
+	//Create objects for memory, files and CPU load
 	partScheme = partmem.NewpC()
 	fileScheme.NewfC(DATADIR)
+	cpuScheme.NewCc(NUMTOFACTOR)
 
 	err = createTree(fileScheme)
 	if err != nil {
@@ -114,6 +133,10 @@ func main() {
 	http.HandleFunc("/api/disk/add", addFiles)
 	http.HandleFunc("/api/disk/getdef", getDefFiles)
 	http.HandleFunc("/api/disk/getact",getActFiles)
+	//CPU handlers
+	http.HandleFunc("/api/cpu/load", addLoad)
+	http.HandleFunc("/api/cpu/stop", stopLoad)
+	http.HandleFunc("/api/cpu/getact", loadReqInfo)
 
 	//Start web server
 	lisock := fmt.Sprintf("%s:%s",ip,port)
@@ -130,13 +153,12 @@ func freeLock(l chan int64, value *int64) {
 	l <- *value
 }
 
-//Attemps to get hold of the memory lock
+//Attemps to get hold of the lock associated with the channel passed as a parameter
 func getLock(l chan int64) (int64, bool) {
 	select {
 	case r := <-l:
 		return r, true
-	default:
-		//Lock not available return
+	default: //Lock not available return
 		return 0, false
 	}
 }
@@ -146,6 +168,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 	tstamp := time.Now().UnixNano() //Request timestamp
 	lval, islav := getLock(lock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
@@ -161,11 +184,13 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 		if bsm != "" {
 			sm, err = strconv.ParseUint(bsm, 10, 64)
 			if err != nil {
+				time.Sleep(1 * time.Second)
 				fmt.Fprintf(writer, "Could not get size: %s\n", err.Error())
 				tstamp = 0
 				return
 			}
 		} else { //No size specified
+			time.Sleep(1 * time.Second)
 			fmt.Fprintf(writer, "File size (in bytes) not specified: add?size=<number of bytes>\n")
 			tstamp = 0
 			return
@@ -175,6 +200,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 		//The result is stored in partScheme
 		err = partmem.DefineParts(sm, HIGHMEMLIM, &partScheme)
 		if err != nil {
+			time.Sleep(1 * time.Second)
 			fmt.Fprintf(writer, "Could not compute mem parts: %s\n", err.Error())
 			tstamp = 0
 			return
@@ -189,6 +215,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 func getDefMem(writer http.ResponseWriter, request *http.Request) {
 	lval, islav := getLock(lock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
@@ -208,6 +235,7 @@ func getDefMem(writer http.ResponseWriter, request *http.Request) {
 func getActMem(writer http.ResponseWriter, request *http.Request) {
 	lval, islav := getLock(lock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
@@ -300,26 +328,29 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 	tstamp := time.Now().UnixNano() //Request timestamp
 	lval, islav := getLock(filelock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
-	} else if lval != 0 { //There is a pending request for mem allocation
+	} else if lval != 0 { //There is a pending request for file creation
 		defer freeLock(filelock, &lval)
 		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
 		time.Sleep(1 * time.Second)
 		return
 	} else { //Lock is available and no pending requests (0)
-		defer freeLock(filelock, &tstamp) //Make sure the lock is released even if errors occur
+		defer freeLock(filelock, &tstamp) //Make sure the lock is released even if errors happen
 		bsm := request.URL.Query().Get("size")
 		var sm uint64 //Requested size in bytes
 		var err error
 		if bsm != "" {
 			sm, err = strconv.ParseUint(bsm, 10, 64)
 			if err != nil {
+				time.Sleep(1 * time.Second)
 				fmt.Fprintf(writer, "Could not get size: %s\n", err.Error())
 				tstamp = 0
 				return
 			}
 		} else { //No size specified
+			time.Sleep(1 * time.Second)
 			fmt.Fprintf(writer, "No data size specified\n")
 			tstamp = 0
 			return
@@ -329,6 +360,7 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 		//The result is stored in partScheme
 		err = partdisk.DefineFiles(sm, HIGHFILELIM, &fileScheme)
 		if err != nil {
+			time.Sleep(1 * time.Second)
 			fmt.Fprintf(writer, "Could not compute file distribution: %s\n", err.Error())
 			tstamp = 0
 			return
@@ -343,6 +375,7 @@ func addFiles(writer http.ResponseWriter, request *http.Request) {
 func getDefFiles(writer http.ResponseWriter, request *http.Request) {
 	lval, islav := getLock(filelock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for file allocation
@@ -362,6 +395,7 @@ func getDefFiles(writer http.ResponseWriter, request *http.Request) {
 func getActFiles(writer http.ResponseWriter, request *http.Request) {
 	lval, islav := getLock(filelock)
 	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
 		fmt.Fprintf(writer, "Server busy, try again later\n")
 		return
 	} else if lval != 0 { //There is a pending request for mem allocation
@@ -387,5 +421,90 @@ func gracefulShutdown(sigchan chan os.Signal) {
 		os.Exit(1)
 	} else {
 		os.Exit(0)
+	}
+}
+
+//Add CPU load to the systeM. Full throttle during specified time
+func addLoad(writer http.ResponseWriter, request *http.Request) {
+	tstamp := time.Now().UnixNano() //Request timestamp
+	lval, islav := getLock(cpulock)
+	if !islav { //Lock not available
+		time.Sleep(1 * time.Second)
+		fmt.Fprintf(writer, "Server busy, try again later\n")
+		return
+	} else if lval != 0 { //There is a pending request for cpu load
+		defer freeLock(cpulock, &lval)
+		fmt.Fprintf(writer, "Server contains pending request, try again later\n")
+		time.Sleep(1 * time.Second)
+		return
+	} else { //Lock is available and no pending requests (0)
+		defer freeLock(cpulock, &tstamp) //Make sure the lock is released even if errors happen
+		bsm := request.URL.Query().Get("time")
+		var sm uint64 //Requested time in seconds
+		var err error
+		if bsm != "" {
+			sm, err = strconv.ParseUint(bsm, 10, 64)
+			if err != nil {
+				fmt.Fprintf(writer, "Invalid time specification: %s\n", err.Error())
+				tstamp = 0
+				return
+			}
+		} else { //No time specified
+			fmt.Fprintf(writer, "No load time specified\n")
+			tstamp = 0
+			return
+		}
+		go cpuload.LoadUp(&cpuScheme, tstamp, sm, cpulock)
+		fmt.Fprintf(writer,"CPU load requested for %d seconds with id: %d\n",sm,tstamp)
+	}
+}	
+
+//Stops the CPU load if there is a request being run and the ID matches
+func stopLoad(writer http.ResponseWriter, request *http.Request) {
+	var id int64
+	var err error
+
+	lval, islav := getLock(cpulock)
+	if !islav { //Lock not available, there is a load request being served
+		cid := request.URL.Query().Get("id")
+		if cid != "" {
+			id, err = strconv.ParseInt(cid, 10, 64)
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				fmt.Fprintf(writer, "Invalid ID specification: %s\n", err.Error())
+				return
+			}
+		} else { //No ID specified
+			time.Sleep(1 * time.Second)
+			fmt.Fprintf(writer, "No request ID specified\n")
+			return
+		}
+		mensj := cpuload.StopLoad(cpuScheme, id)
+		fmt.Fprintf(writer, mensj)
+	} else { //Lock available, nothing to do
+		defer freeLock(cpulock,&lval)
+		fmt.Fprintf(writer, "No load request being processed, nothing to do\n")
+		time.Sleep(1 * time.Second)
+		return
+	}
+}
+
+//Gets information about the current load request, if one is in progress
+func loadReqInfo(writer http.ResponseWriter, request *http.Request) {
+	lval, islav := getLock(cpulock)
+	if !islav { //Lock not available, there is a load request being served
+		start := cpuScheme.GetReqTime()
+		duration := cpuScheme.GetDuration()
+		reqt := fmt.Sprintf("Load request sent at: %v",start)
+		loadt := fmt.Sprintf("Load time requested: %d seconds",duration)
+		end := start.Add(time.Second * time.Duration(duration))
+		loadend := fmt.Sprintf("Load request ends at: %v", end)
+		time.Sleep(1 * time.Second)
+		fmt.Fprintf(writer,"%s\n%s\n%s\nNumber to factor: %s\n",reqt,loadt,loadend,NUMTOFACTOR)
+	} else { //Lock available, nothing to do
+		defer freeLock(cpulock,&lval)
+		fmt.Fprintf(writer,"No load request in progress\n")
+		time.Sleep(1 * time.Second)
+		return
 	}
 }
