@@ -1,21 +1,128 @@
 # TESTERO
-Testero is a simple webserver application written in go to test resource consumption in a running system.  
-
-The application is intended to run as a containerized service in a kubernetes cluster, but it can also be run directly from the terminal in a host.
+Testero is an application intended to test resource consumption in a kubernetes cluster.  It accepts requests at specific API endpoints to allocate memory, file storage and CPU usage.
 
 The user running the application does not require any special privileges.
 
+Resources can be released by requesting a zero ammount for memory and file storage, and by calling the _stop_ endpoint in the case of CPU usage.  Additionally when the applications is terminated all resources are released, in particular any files that may have been created are deleted.
+
+As a safety meassure to prevent resource starvation in the system, each of the resource groups: memory, file storage and CPU usage, have a default limit in the ammount that can be requested by the user.  These limits are defined at the beginning of the program and not reevaluated again.
+
+It is not recommended to run this application in a production environment, due to its own nature as a resource consumer and despite the default limits that it imposes on in resource, other applications running on the system can be affected by the reduction in available resources for their normal operation.
+
 ## RUNNING TESTERO
-Get the code and use the _go_ compiler to execute the testero.go main file:
+The _testero_ application can be used as a containerized service in a kubernetes cluster, or as an independent application.
+
+### RUNNING AS AN INDEPENDENT APPLICATION
+_testero_ has been tested on linux systems, it is not guarrantied to work on Mac or Windows systems.
+
+To run _testero_ on a linux host the [golang](https://golang.org) toolset is required to compile the source code into a binary application.  Once the bynari is generated, the golang toolset is not required anymore.
+
+Get the code from the git [repositoryr](https://github.com/tale-toul/testero) and use the _go_ tool to execute the testero.go main file.  
 
 ```shell
+$ git clone https://github.com/tale-toul/testero
+$ cd testero
 $ go run testero.go
+...
+2021/04/04 12:14:04 Starting web server on: 0.0.0.0:8080
 ```
-While the program is running, the terminal from which it was started is blocked.  To stop the program simply press __CTRL-C__ or kill the process from another terminal.
+This can all be done with a single command:
+
+```shell
+$ go get -u -v github.com/tale-toul/testero
+github.com/tale-toul/testero (download)
+```
+The _testero_ binary file can be found at $GOPATH/bin/testero
+
+```shell
+$ ls $(go env GOPATH)/bin
+```
+Run the command with a command like:
+```shell
+$ $(go env GOPATH)/bin/testero
+...
+2021/04/04 12:17:00 Starting web server on: 0.0.0.0:8080
+```
+To stop the program simply press __CTRL-C__ or kill the process from another terminal.  It is recommended to terminate the application with a SIGTERM or SIGINT signal to make sure that any files created during program execution are deleted.
 
 The application does not support any starting parameters at the moment.
 
-The web service listens on localhost, port 8080 (127.0.0.1:8080)
+The web server listens on all local IPs and port 8080 (0.0.0.0:8080) by default.
+
+### RUNNING AS A CONTAINER
+To run _testero_ as a container, create the binay file as explained in [the previous section](#running_as_an_independent_application), then create a container image that runs that binary, an example Dockerfile is included in the project code:
+
+* Copy the Dockerfile and the _testero_ binary to a common directory
+```shell
+$ mkdir testero_app
+$ cp $(go env GOPATH)/bin/testero testero_app
+$ cp $(go env GOPATH)/src/github.com/tale-toul/testero/Dockerfile testero_app
+```
+* Build the container, __podman__ is used in the following examples but __docker__ is also a valid alternative using the same options and parameters:
+
+```shell
+$ cd testero_app/
+$ sudo podman build -t testero .
+```
+* A container can be instantiated directly from the image:
+```shell
+$ sudo podman run --name testero -d -p 8080:8080 testero
+```
+* The application should be available at `http://localhost:8080`
+
+```shell
+$ curl http://localhost:8080/api/mem/getact
+Last request ID: 0
+Parts of size: 262144, Count: 0
+Parts of size: 1048576, Count: 0
+Parts of size: 4194304, Count: 0
+Parts of size: 16777216, Count: 0
+Parts of size: 67108864, Count: 0
+Total size: 0 bytes.
+```
+To run the container in a kubernetes cluster, the image must be pushed to a registry before it can be deployed into the cluster:
+
+* Tag the image with the name of the registry and the user and project where it will be stored:
+
+```shell
+$ sudo podman tag testero quay.io/milponta/testero
+``` 
+* Push the image into the registry.  If the registry requires authentication, log in first:
+```shell
+$ sudo podman login -u milponta quay.io
+$ sudo podman push quay.io/tale_toul/testero
+Getting image source signatures
+Copying blob da696ed0d687 done
+...
+Writing manifest to image destination
+Storing signatures
+```
+* To deploy the application in an Openshift cluster the following example uses the __oc new-app__ command.  A [CodeReady Containers](https://developers.redhat.com/products/codeready-containers/overview) cluster is used, and the image repository is expected to be publicly available and don't require authentication to pull the image.
+
+```shell
+$ oc login -u developer -p developer https://api.crc.testing:6443
+$ oc new-project testero
+$ oc new-app --name testero --docker-image quay.io/milponta/testero
+$ oc get pods
+```
+* Create a route to access the application:
+
+```shell
+$ oc expose svc testero
+$ oc get routes
+```
+* The application should available at `http://testero-testero.apps-crc.testing`:
+
+```shell
+$ curl http://testero-testero.apps-crc.testing/api/mem/getact
+Last request ID: 0
+Parts of size: 262144, Count: 0
+Parts of size: 1048576, Count: 0
+Parts of size: 4194304, Count: 0
+Parts of size: 16777216, Count: 0
+Parts of size: 67108864, Count: 0
+Total size: 0 bytes.
+```
 
 ## API ENDPOINTS
 The web service publishes the following API endpoints

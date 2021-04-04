@@ -9,8 +9,8 @@ import (
 
 //Contains information about the CPU load task
 type CpuCollection struct {
-	clid int64  //latest request ID corresponds to the Unix time when the request was sent
-	lapse uint64 //latest request load time
+	clid int64  //Request ID corresponds to the Unix time when the request was sent
+	lapse uint64 //Request load time in seconds
 	bfn *big.Int //Number to factor
 }
 
