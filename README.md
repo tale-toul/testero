@@ -10,7 +10,9 @@ As a safety meassure to prevent resource starvation in the system, each of the r
 It is not recommended to run this application in a production environment, due to its own nature as a resource consumer and despite the default limits that it imposes on in resource, other applications running on the system can be affected by the reduction in available resources for their normal operation.
 
 ## RUNNING TESTERO
-The _testero_ application can be used as a containerized service in a kubernetes cluster, or as an independent application.
+The _testero_ application can be used as a containerized service in a kubernetes cluster, or as an independent application.  In the spirit of cloud native development, the application does not support starting parameters, however some aspects of the execution can be adapted through the use of [environment variables](configuration-with-environment-variables).
+
+The web server listens on all local IPs and port 8080 (0.0.0.0:8080).
 
 ### RUNNING AS AN INDEPENDENT APPLICATION
 _testero_ has been tested on linux systems, it is not guarrantied to work on Mac or Windows systems.
@@ -32,25 +34,22 @@ This can all be done with a single command:
 $ go get -u -v github.com/tale-toul/testero
 github.com/tale-toul/testero (download)
 ```
-The _testero_ binary file can be found at $GOPATH/bin/testero
+The resulting _testero_ binary file can be found at $GOPATH/bin/testero
 
 ```shell
 $ ls $(go env GOPATH)/bin
 ```
-Run the command with a command like:
+Run the application with a command like:
 ```shell
 $ $(go env GOPATH)/bin/testero
 ...
 2021/04/04 12:17:00 Starting web server on: 0.0.0.0:8080
 ```
-To stop the program simply press __CTRL-C__ or kill the process from another terminal.  It is recommended to terminate the application with a SIGTERM or SIGINT signal to make sure that any files created during program execution are deleted.
+To stop the application simply press __CTRL-C__ or kill the process from another terminal.  It is recommended to terminate the application using a SIGTERM or SIGINT signal to make sure that any files created during program execution are properly cleaned up.
 
-The application does not support any starting parameters at the moment.
-
-The web server listens on all local IPs and port 8080 (0.0.0.0:8080) by default.
 
 ### RUNNING AS A CONTAINER
-To run _testero_ as a container, create the binay file as explained in [the previous section](#running_as_an_independent_application), then create a container image that runs that binary, an example Dockerfile is included in the project code:
+To run _testero_ as a container, create the binay file as explained in [the previous section](#running-as-an-independent-application), then create a container image that runs that binary, an example Dockerfile is included in the project code:
 
 * Copy the Dockerfile and the _testero_ binary to a common directory
 ```shell
@@ -123,6 +122,20 @@ Parts of size: 16777216, Count: 0
 Parts of size: 67108864, Count: 0
 Total size: 0 bytes.
 ```
+
+## CONFIGURATION WITH ENVIRONMENT VARIABLES
+
+A well behaved cloud native application should [Store config in the environment](https://12factor.net/)
+
+_testero_ checks for the following environment variables to modify its configuration.  None of these variables is strictly require, if not defined default values will be used:
+
+* __HIGHMEMLIM__.- Used to set the limit of total memory the application can allocate.  Expects a number representing the ammount of memory in bytes, for example to set limit to 2GB use `HIGHMEMLIM=2147483648`.  Its default value is set to the ammount of free momemory in the system at application start up.
+
+* __HIGHFILELIM__.- Used to set the limit of total file storage the application can create. Expects a number representing the ammount of storage in bytes, for example to set limit to 10GB use `HIGHFILELIM=10737418240`.  Its default value is set to the ammount of available disk space in the device associated with the directory defined by the __DATADIR__ environment variable, at application start up.
+
+* __DATADIR__.- Used to specify the root directory where files will be created, this directory must already exist in the system. Its default value is the application working directory.
+
+* __NUMTOFACTOR__.- Used to specify the number to factorize, which is used by the CPU load generation part of the application, and defines the maximum ammount of time the application will load the CPU in the system.  Its default values is the number prime number __493440589722494743501__ which roughly requires between 5 to minutes to factorize depending on the system.  To load the CPU for a longer time a bigger, possibly prime,  number can be used.
 
 ## API ENDPOINTS
 The web service publishes the following API endpoints
