@@ -79,7 +79,7 @@ func DefineParts(tsize uint64, hilimit uint64, ptS *PartCollection) error {
 	usedSize = ptS.sizeOfParts() //The memory being used up at the moment
 
 	if tsize > usedSize && tsize > hilimit { //If the requested size bigger than the currently used memory, and the increment is bigger than the limit
-		return fmt.Errorf("Invalid total size %d.  High limit is %d bytes.", tsize, hilimit)
+		return fmt.Errorf("Size requested is over the limit: requested %d bytes, limit: %d bytes.", tsize, hilimit)
 	}
 	for index, psize := range ptS.partSizes {
 		nparts = tsize / psize

@@ -135,7 +135,7 @@ func StopLoad(cS CpuCollection, id int64) string {
 	if id != cS.clid { //IDs don't match, go away
 		log.Printf("cpuload.StopLoad(): Stop request ID (%d) does not match last load request ID (%d)",id,cS.clid)
 		time.Sleep(1 * time.Second)
-		return fmt.Sprintf("Incorrect stop load request ID (%d)\n",id)
+		return fmt.Sprintf("Incorrect stop load request ID=%d\n",id)
 	} else { //IDs match
 		log.Printf("cpuload.StopLoad(): IDs match, stoping CPU load")
 		quit <- true

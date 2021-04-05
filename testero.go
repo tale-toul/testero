@@ -126,11 +126,11 @@ func main() {
 	}
 
 	//Memory handlers
-	http.HandleFunc("/api/mem/add", addMem)
+	http.HandleFunc("/api/mem/set", addMem)
 	http.HandleFunc("/api/mem/getdef", getDefMem)
 	http.HandleFunc("/api/mem/getact", getActMem)
 	//Disk handlers
-	http.HandleFunc("/api/disk/add", addFiles)
+	http.HandleFunc("/api/disk/set", addFiles)
 	http.HandleFunc("/api/disk/getdef", getDefFiles)
 	http.HandleFunc("/api/disk/getact",getActFiles)
 	//CPU handlers
@@ -191,7 +191,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 			}
 		} else { //No size specified
 			time.Sleep(1 * time.Second)
-			fmt.Fprintf(writer, "File size (in bytes) not specified: add?size=<number of bytes>\n")
+			fmt.Fprintf(writer, "File size (in bytes) not specified: set?size=<number of bytes>\n")
 			tstamp = 0
 			return
 		}
@@ -201,7 +201,7 @@ func addMem(writer http.ResponseWriter, request *http.Request) {
 		err = partmem.DefineParts(sm, HIGHMEMLIM, &partScheme)
 		if err != nil {
 			time.Sleep(1 * time.Second)
-			fmt.Fprintf(writer, "Could not compute mem parts: %s\n", err.Error())
+			fmt.Fprintf(writer, "Could not compute memory parts: %s\n", err.Error())
 			tstamp = 0
 			return
 		}

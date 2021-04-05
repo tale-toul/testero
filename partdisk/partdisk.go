@@ -86,7 +86,7 @@ func DefineFiles(tsize uint64, hilimit uint64, flS *FileCollection) error {
 		return err
 	}
 	if tsize > tfs && tsize > hilimit { //Trying to add files and the total size exceeds the limit
-		return fmt.Errorf("Invalid total size %d.  High limit is %d bytes.", tsize, hilimit)
+		return fmt.Errorf("Size requested is over the limit: requested %d bytes, limit: %d bytes.", tsize, hilimit)
 	}
 	for index, fsize := range flS.fileSizes {
 		nfiles = tsize / fsize
