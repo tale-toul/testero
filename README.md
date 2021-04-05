@@ -5,9 +5,9 @@ The user running the application does not require any special privileges.
 
 Resources can be released by requesting a zero ammount for memory and file storage, and by calling the _stop_ endpoint in the case of CPU usage.  Additionally when the applications is terminated all resources are released, in particular any files that may have been created are deleted.
 
-As a safety meassure to prevent resource starvation in the system, each of the resource groups: memory, file storage and CPU usage, have a default limit in the ammount that can be requested by the user.  These limits are defined at the beginning of the program and not reevaluated again.
+As a safety meassure to prevent resource starvation in the system, each of the resource groups: memory, file storage and CPU usage, have a default limit for the ammount that the user can request by.  These limits are defined at the beginning of the program and not recalculated again.
 
-It is not recommended to run this application in a production environment, due to its own nature as a resource consumer and despite the default limits that it imposes on in resource, other applications running on the system can be affected by the reduction in available resources for their normal operation.
+It is not recommended to run this application in a production environment, due to its own nature as a resource consumer and despite the default limits in place, other applications running on the system can be affected by the reduction in available resources for their normal operation.  Another point to consider before using the application is that it does not require authentication, so anyone with network access to the endpoints can send requests and consume resources.
 
 ## RUNNING TESTERO
 The _testero_ application can be used as a containerized service in a kubernetes cluster, or as an independent application.  In the spirit of cloud native development, the application does not support starting parameters, however some aspects of the execution can be adapted through the use of [environment variables](#configuration-with-environment-variables).
@@ -252,7 +252,7 @@ $ curl http://localhost:8080/api/cpu/stop?id=1617644968125725512
 No load request being processed, nothing to do
 ```
 * __/api/cpu/getact__ (no parameters).  Sending an HTTP GET request to this endpoint returns information about the current load request being processed, if there is one.
-```shell
+```
 $ curl http://localhost:8080/api/cpu/getact
 Load request sent at: 2021-04-05 20:03:13 +0200 CEST
 Load time requested: 200 seconds
