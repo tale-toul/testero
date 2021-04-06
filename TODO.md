@@ -10,9 +10,9 @@
 
 * Add API cpu endpoint to return data about the current load request, if any: when was the request sent, the time requested, the NUMTOFACTOR in use.
 
-## TODO List
-
 * Variable HIGHMEMLIM needs to be defined only at the beggining of the program execution, similar to how HIGHFILELIM is dealt with (DONE)
+
+## TODO List
 
 * Variables: HIGHMEMLIM and HIGHFILELIM are never updated once defined at the beginning of the program: If they are set to default values they should be updated after every add/remove request; if they are set from environment variables they should be updated too, but using a different mechanism.
 
@@ -22,7 +22,6 @@
 
 * Add environment var to define IP and PORT where the web server will listen on
 
-* Add https support
-
 * Require ID login token to make requests
 
+~ Separate each consumer as its own independent application

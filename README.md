@@ -7,7 +7,9 @@ Resources can be released by requesting a zero ammount for memory and file stora
 
 As a safety meassure to prevent resource starvation in the system, each of the resource groups: memory, file storage and CPU usage, have a default limit for the ammount that the user can request by.  These limits are defined at the beginning of the program and not recalculated again.
 
-It is not recommended to run this application in a production environment, due to its own nature as a resource consumer and despite the default limits in place, other applications running on the system can be affected by the reduction in available resources for their normal operation.  Another point to consider before using the application is that it does not require authentication, so anyone with network access to the endpoints can send requests and consume resources.
+__WARNING NOTICE__
+It is not recommended to run this application in a production environment, due to its own nature as a resource consumer and despite the default limits it imposes, other applications running on the system can be affected by the reduction in available resources for their normal operation.  
+Another point to consider is that it does not require authentication, so anyone with network access to the endpoints can send requests and consume resources.
 
 ## RUNNING TESTERO
 The _testero_ application can be used as a containerized service in a kubernetes cluster, or as an independent application.  In the spirit of cloud native development, the application does not support starting parameters, however some aspects of the execution can be adapted through the use of [environment variables](#configuration-with-environment-variables).
@@ -258,6 +260,16 @@ Load request sent at: 2021-04-05 20:03:13 +0200 CEST
 Load time requested: 200 seconds
 Load request ends at: 2021-04-05 20:06:33 +0200 CEST
 Number to factor: 493440589722494743501
+```
+## USING HTTPS TO ACCESS THE ENDPOINTS
+_testero_ does not support secure TLS (https) connections by itself, but if the application is deployed to an Openshift cluster it is very easy to create a secure route to access the endpoints via TLS (https).
+Once the application has been [deployed in Openshift](#running-in-an-openshift-cluster), create an edge route.  In the following example the TLS certificate assigned to the route will be provided by Openshift, but it is also possible to use an external certificate.
+```
+$ oc create route edge testerossl --service testero
+```
+Now, to access the endpoints we must use the _https_ protocol:
+```
+$ curl -k https://testerossl-testero.apps-crc.testing/api/mem/getact
 ```
 
 ## CONCURRENCY
