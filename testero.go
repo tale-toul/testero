@@ -246,7 +246,8 @@ func getActMem(writer http.ResponseWriter, request *http.Request) {
 	} else { //Lock obtained and no pending request
 		var unlock int64 = 0
 		defer freeLock(lock, &unlock) //Make sure the lock is released even if error occur
-		mensj := partScheme.GetActParts()
+		dump := request.URL.Query().Get("dump")
+		mensj := partScheme.GetActParts(dump)
 		fmt.Fprintf(writer, mensj)
 	}
 }

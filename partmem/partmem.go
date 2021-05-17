@@ -29,7 +29,7 @@ type PartCollection struct {
 }
 
 //Computes the actual number of parts and its sizes
-func (pc PartCollection) GetActParts() string {
+func (pc PartCollection) GetActParts(dump string) string {
 	var mensj string
 	var totalSize uint64
 	mensj += fmt.Sprintf("Last request ID: %d\n",pc.lid)
@@ -39,6 +39,9 @@ func (pc PartCollection) GetActParts() string {
 		for value != nil {
 			count++
 			totalSize += uint64(len(value.data))
+			if dump == "true" {
+				log.Printf("\n\nPointer value:%v\nFile contents:\n%s",&value.next,value.data)
+			}
 			value = value.next
 		}
 		mensj += fmt.Sprintf("Count: %d\n", count)
@@ -116,7 +119,7 @@ func DefineParts(tsize uint64, hilimit uint64, ptS *PartCollection) error {
 
 //Fill the part array with random bytes from the writable section of the ASCI chart.
 func fillPart(part []byte) {
-	rand.Seed(time.Now().Unix())
+	rand.Seed(time.Now().UnixNano())
 	for x := 0; x < len(part); x++ {
 		part[x] = byte(rand.Intn(95) + 32)
 	}
