@@ -359,7 +359,7 @@ select {
 ```
 An important point to make sure that the lock is released even if a goroutine ends in failure is that a function is used to release the lock, and that function is deferred as soon as the lock is obtained.
 
-#PSEUDO RANDOM DATA GENERATIO
+## PSEUDO RANDOM DATA GENERATIO
 When generating disk space (files) it is important the the data inside the files is apparently random so that the space is not deduplicated by some efficiendy algorithm in the OS, or can be shared between files.  Generating random data using the math.random package Intn() function is easy and convenient however this function is slow, so another method must be used to generate the pseudo random data. 
 
 The method used in the randbytes() function is simple:
