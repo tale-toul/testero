@@ -358,3 +358,27 @@ select {
   }
 ```
 An important point to make sure that the lock is released even if a goroutine ends in failure is that a function is used to release the lock, and that function is deferred as soon as the lock is obtained.
+
+#PSEUDO RANDOM DATA GENERATIO
+When generating disk space (files) it is important the the data inside the files is apparently random so that the space is not deduplicated by some efficiendy algorithm in the OS, or can be shared between files.  Generating random data using the math.random package Intn() function is easy and convenient however this function is slow, so another method must be used to generate the pseudo random data. 
+
+The method used in the randbytes() function is simple:
+* An array of bytes is created and populated with random printable [ASCII characters](https://elcodigoascii.com.ar/), between values 32 (space) and 126 (~).  The random data is created using Intn() function but because the array is small, it is created very fast.  This array of random data is the base to pick the random data that will be added to the actual files.  This array is created new for every file created by the application so the base for every file is different, adding more randomness to the process.
+```go
+	var base [blength]byte 
+  for x:=0; x<len(base); x++ {
+    base[x]=byte(rand.Intn(95) + 32) 
+```
+* The bytes written to the file are picked from the the base[] array at random, the selection process is based on a counter and an index.  The counter is updated with the following operation:
+```go
+counter += i + uint64(base[i%uint64(blength)])
+index = counter%uint64(len(base))
+```
+The counter starts at zero, __i__ is the loop variable that increases by one on each iteration.  The counter is increased by adding __i__ and the value in the base[] array at position i%blength, to avoid reaching out of the array.  The resulting number will be greater than the size of the base[] array after a few iterations so an __index__ variable is used to make sure that it is kept withing bounds, by computing the remainder of the division between the counter and the length of the array.
+
+* To add another level of randomness to the string of bytes written to the file, the counter variable is assigned a random value every time the loop variable __i__ is a whole multiple of the size of the base[] array:
+```go
+if i%uint64(blength) == 0 {
+  counter = uint64(rand.Intn(blength+1))
+} 
+```

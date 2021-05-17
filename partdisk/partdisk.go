@@ -16,7 +16,7 @@ import (
 //Max number of files for each size that can be created
 const limitFiles uint64 = 25
 //Length of random id string
-const rstl uint64 = 7
+const rstl int = 7
 
 //Holds a representation of the file data
 type FileCollection struct {
@@ -49,13 +49,37 @@ func (fc *FileCollection) NewfC(basedir string) {
 }
 
 //Creates a random string made of lower case letters only
-func randstring(size uint64) string {
+func randstring(size int) string {
 	rval := make([]byte,size)
-	rand.Seed(time.Now().Unix())
-	for i:=0; i<int(size); i++ {
-		rval[i]=byte(rand.Intn(26) + 97)
+	rand.Seed(time.Now().UnixNano())
+	for i:=0; i<size; i++ {
+		rval[i] = byte(rand.Intn(26) + 97)
 	}
 	return string(rval)
+}
+
+//Creates a random list of bytes with printable ASCII characters
+func randbytes(size uint64) []byte {
+	const blength int = 1024
+	rval := make([]byte,size)
+	var base [blength]byte
+	var counter, index uint64
+	//Fill up the base array with random printable characters
+	rand.Seed(time.Now().UnixNano())
+	for x:=0; x<len(base); x++ {
+		base[x]=byte(rand.Intn(95) + 32) //ASCII 32 to 126
+	}
+	//Fill the rval slice with pseudorandom characters picked from the base array
+	for i:=uint64(0); i<size; i++ {
+		//This psuedo random algorith is explained in the documentation
+		counter += i + uint64(base[i%uint64(blength)])
+		index = counter%uint64(len(base))
+		rval[i]=base[index]
+		if i%uint64(blength) == 0 {
+			counter = uint64(rand.Intn(blength))
+		}
+	}
+	return rval
 }
 
 //Get the total number of bytes used up by the files already created
@@ -257,15 +281,13 @@ func adrefiles(fS *FileCollection) error {
 
 //Creates a single file of the indicated size
 func newFile(filename string, size uint64) error {
-	var trunch []byte //Trunches of 4k
 	f,err := os.Create(filename)
 	defer f.Close()
 	if err != nil {
 		log.Printf("newFile(): Error creating file: %s",filename)
 		return err
 	}
-	trunch = []byte(randstring(size))
-	_,err = f.Write(trunch)
+	_,err = f.Write(randbytes(size))
 	if err != nil {
 		log.Printf("newFile(): Error writing to file: %s",filename)
 		return err
