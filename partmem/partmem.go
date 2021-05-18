@@ -119,9 +119,21 @@ func DefineParts(tsize uint64, hilimit uint64, ptS *PartCollection) error {
 
 //Fill the part array with random bytes from the writable section of the ASCI chart.
 func fillPart(part []byte) {
+	const blength int = 1024
+	var base [blength]byte
+	var counter, index uint64
 	rand.Seed(time.Now().UnixNano())
+	for x:=0; x<len(base); x++ {
+		base[x]=byte(rand.Intn(95) + 32) //ASCII 32 to 126
+	}
 	for x := 0; x < len(part); x++ {
-		part[x] = byte(rand.Intn(95) + 32)
+		//This psuedo random algorith is explained in the documentation
+		counter += uint64(x) + uint64(base[x%blength])
+		index = counter%uint64(len(base))
+		part[x] = base[index]
+		if x%blength == 0 {
+			counter = uint64(rand.Intn(blength))
+		}
 	}
 }
 
