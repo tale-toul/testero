@@ -281,16 +281,34 @@ func adrefiles(fS *FileCollection) error {
 
 //Creates a single file of the indicated size
 func newFile(filename string, size uint64) error {
+	const blength int = 1024
+	burval := make([]byte,blength)
+	var base [blength]byte
+	var counter, index uint64
+	//Fill up the base array with random printable characters
+	rand.Seed(time.Now().UnixNano())
+	for x:=0; x<len(base); x++ {
+		base[x]=byte(rand.Intn(95) + 32) //ASCII 32 to 126
+	}
 	f,err := os.Create(filename)
 	defer f.Close()
 	if err != nil {
 		log.Printf("newFile(): Error creating file: %s",filename)
 		return err
 	}
-	_,err = f.Write(randbytes(size))
-	if err != nil {
-		log.Printf("newFile(): Error writing to file: %s",filename)
-		return err
+	burval = base[:]
+	for i:=uint64(0); i<size; i++ {
+		counter += i + uint64(base[i%uint64(blength)])
+		index = counter%uint64(len(base))
+		burval[i%uint64(len(base))]=base[index]
+		if i%uint64(blength) == 0 {
+			_,err = f.Write(burval)
+			if err != nil {
+				log.Printf("newFile(): Error writing to file: %s",filename)
+				return err
+			}
+			counter = uint64(rand.Intn(blength))
+		}
 	}
 	return nil
 }
