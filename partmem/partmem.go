@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"time"
+	"runtime"
 )
 
 //Number of parts of every size to aim for
@@ -190,6 +191,7 @@ func CreateParts(ptS *PartCollection, ts int64, lock chan int64) {
 			pap.next = nil
 		} 
 	}
+	runtime.GC()
 	log.Printf("CreateParts(): Request %d completed in %d seconds\n",ts,int64(time.Since(lt).Seconds()))
 }
 
