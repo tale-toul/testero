@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"time"
 	"runtime"
+	"time"
 )
 
 //Number of parts of every size to aim for
@@ -33,21 +33,21 @@ type PartCollection struct {
 func (pc PartCollection) GetActParts(dump string) string {
 	var mensj string
 	var totalSize uint64
-	mensj += fmt.Sprintf("Last request ID: %d\n",pc.lid)
+	mensj += fmt.Sprintf("Last request ID: %d\n", pc.lid)
 	for index, value := range pc.partLists {
-		count := 0 
+		count := 0
 		mensj += fmt.Sprintf("Parts of size: %d, ", pc.partSizes[index])
 		for value != nil {
 			count++
 			totalSize += uint64(len(value.data))
 			if dump == "true" {
-				log.Printf("\n\nPointer value:%v\nFile contents:\n%s",&value.next,value.data)
+				log.Printf("\n\nPointer value:%v\nFile contents:\n%s", &value.next, value.data)
 			}
 			value = value.next
 		}
 		mensj += fmt.Sprintf("Count: %d\n", count)
 	}
-	mensj += fmt.Sprintf("Total size: %d bytes.\n",totalSize)
+	mensj += fmt.Sprintf("Total size: %d bytes.\n", totalSize)
 	return mensj
 }
 
@@ -83,7 +83,7 @@ func DefineParts(tsize uint64, hilimit uint64, ptS *PartCollection) error {
 	usedSize = ptS.sizeOfParts() //The memory being used up at the moment
 
 	if tsize > usedSize && tsize > hilimit { //If the requested size bigger than the currently used memory, and the increment is bigger than the limit
-		return fmt.Errorf("Size requested is over the limit: requested %d bytes, limit: %d bytes.", tsize, hilimit)
+		return fmt.Errorf("size requested is over the limit: requested %d bytes, limit: %d bytes", tsize, hilimit)
 	}
 	for index, psize := range ptS.partSizes {
 		nparts = tsize / psize
@@ -124,13 +124,13 @@ func fillPart(part []byte) {
 	var base [blength]byte
 	var counter, index uint64
 	rand.Seed(time.Now().UnixNano())
-	for x:=0; x<len(base); x++ {
-		base[x]=byte(rand.Intn(95) + 32) //ASCII 32 to 126
+	for x := 0; x < len(base); x++ {
+		base[x] = byte(rand.Intn(95) + 32) //ASCII 32 to 126
 	}
 	for x := 0; x < len(part); x++ {
 		//This psuedo random algorith is explained in the documentation
 		counter += uint64(x) + uint64(base[x%blength])
-		index = counter%uint64(len(base))
+		index = counter % uint64(len(base))
 		part[x] = base[index]
 		if x%blength == 0 {
 			counter = uint64(rand.Intn(blength))
@@ -144,21 +144,21 @@ func CreateParts(ptS *PartCollection, ts int64, lock chan int64) {
 	var lt time.Time
 
 	select {
-	case <- time.After(5 * time.Second):
+	case <-time.After(5 * time.Second):
 		//If 5 seconds pass without getting the proper lock, abort
 		log.Printf("partmem.CreateParts(): timeout waiting for lock\n")
 		return
-	case chts := <- lock:
+	case chts := <-lock:
 		if chts == ts { //Got the lock and it matches the timestamp received
 			//Proceed
 			ptS.lid = ts
-			defer func(){
+			defer func() {
 				lock <- 0 //Release lock
 			}()
 			lt = time.Now() //Start counting how long does the parts creation take
-			log.Printf("partmem.CreateParts(): lock obtained, timestamps match: %d\n",ts)
+			log.Printf("partmem.CreateParts(): lock obtained, timestamps match: %d\n", ts)
 		} else {
-			log.Printf("partmem.CreateParts(): lock obtained, but timestamps missmatch: %d - %d\n", ts,chts)
+			log.Printf("partmem.CreateParts(): lock obtained, but timestamps missmatch: %d - %d\n", ts, chts)
 			lock <- chts
 			return
 		}
@@ -189,14 +189,14 @@ func CreateParts(ptS *PartCollection, ts int64, lock chan int64) {
 		}
 		if pap != nil && desirednumParts > 0 {
 			pap.next = nil
-		} 
+		}
 	}
 	runtime.GC()
-	log.Printf("CreateParts(): Request %d completed in %d seconds\n",ts,int64(time.Since(lt).Seconds()))
+	log.Printf("CreateParts(): Request %d completed in %d seconds\n", ts, int64(time.Since(lt).Seconds()))
 }
 
 //Prints the number of _apart_ elements defined
-func GetDefParts (pS *PartCollection) string {
+func GetDefParts(pS *PartCollection) string {
 	var semiTotal uint64
 	var rst string
 	for index, value := range pS.partSizes {
