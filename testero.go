@@ -1,11 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"errors"
-	"github.com/tale-toul/testero/cpuload"
-	"github.com/tale-toul/testero/partdisk"
-	"github.com/tale-toul/testero/partmem"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,10 +10,15 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/tale-toul/testero/cpuload"
+	"github.com/tale-toul/testero/partdisk"
+	"github.com/tale-toul/testero/partmem"
 )
 
 //Listening IP for the web server
 const ip string = "0.0.0.0"
+
 //Listening port for web server
 const port string = "8080"
 
@@ -27,28 +29,35 @@ const defnum string = "493440589722494743501" //Requires more than 15 min to fac
 
 //Data structure with memory part definitions and data
 var partScheme partmem.PartCollection
+
 //Data structure with files definitions
 var fileScheme partdisk.FileCollection
+
 //Data structure containing info about CPU load
 var cpuScheme cpuload.CpuCollection
 
 //Lock buffered, to make sure there is no concurrency problems with memory operations
 var lock chan int64
+
 //Lock buffered, to facilitate disk operations
 var filelock chan int64
+
 //Lock buffered, to avoid cpu load concurrent requests
 var cpulock chan int64
 
 //Environment variable to set the limit for request to add data into memory.  In bytes
 var HIGHMEMLIM uint64
+
 //Environment var to set the limit of storage space, in bytes.
 var HIGHFILELIM uint64
+
 //Env var specifying the directory to store files
 var DATADIR string
+
 //Env var containing the number to factor to generate CPU load
 var NUMTOFACTOR string
 
-//Get the value from env var with name evv and convert it to a unsigned integer 
+//Get the value from env var with name evv and convert it to a unsigned integer
 func setEnvNum(evv string) uint64 {
 	var errnv error
 	var envalue uint64
@@ -70,7 +79,7 @@ func main() {
 	var err error
 
 	//Channel and gorutine to handle TERM and INT Operating System signals gracefully
-	sigs := make(chan os.Signal,1)
+	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go gracefulShutdown(sigs)
 
@@ -91,13 +100,13 @@ func main() {
 	if DATADIR == "" {
 		DATADIR = "."
 	}
-	log.Printf("DATADIR set to: %s",DATADIR)
+	log.Printf("DATADIR set to: %s", DATADIR)
 	//Set the high limit for memory the total size to request
 	if HIGHMEMLIM == 0 { //Not defined
 		HIGHMEMLIM = freeRam()
 	}
-	log.Printf("HIGHMEMLIM set to: %d bytes.",HIGHMEMLIM)
-	
+	log.Printf("HIGHMEMLIM set to: %d bytes.", HIGHMEMLIM)
+
 	//Set the high limit for the total file size requests
 	if HIGHFILELIM == 0 {
 		HIGHFILELIM, err = getfreeDisk(DATADIR)
@@ -106,7 +115,7 @@ func main() {
 			return
 		}
 	}
-	log.Printf("HIGHFILELIM set to: %d bytes.",HIGHFILELIM)
+	log.Printf("HIGHFILELIM set to: %d bytes.", HIGHFILELIM)
 
 	//Set the number to factor, used to generate CPU load
 	NUMTOFACTOR = os.Getenv("NUMTOFACTOR")
@@ -121,7 +130,7 @@ func main() {
 
 	err = createTree(fileScheme)
 	if err != nil {
-		log.Printf("CreateFiles(): Error creating directory tree: %s\n%s\n",fileScheme.GetRandStr(),err.Error())
+		log.Printf("CreateFiles(): Error creating directory tree: %s\n%s\n", fileScheme.GetRandStr(), err.Error())
 		return
 	}
 
@@ -132,18 +141,18 @@ func main() {
 	//Disk handlers
 	http.HandleFunc("/api/disk/set", addFiles)
 	http.HandleFunc("/api/disk/getdef", getDefFiles)
-	http.HandleFunc("/api/disk/getact",getActFiles)
+	http.HandleFunc("/api/disk/getact", getActFiles)
 	//CPU handlers
 	http.HandleFunc("/api/cpu/load", addLoad)
 	http.HandleFunc("/api/cpu/stop", stopLoad)
 	http.HandleFunc("/api/cpu/getact", loadReqInfo)
 
 	//Start web server
-	lisock := fmt.Sprintf("%s:%s",ip,port)
-	log.Printf("Starting web server on: %s",lisock)
+	lisock := fmt.Sprintf("%s:%s", ip, port)
+	log.Printf("Starting web server on: %s", lisock)
 	log.Fatal(http.ListenAndServe(lisock, nil))
 	//Delete all files before exiting
-	log.Printf("Deleting all files at %s",fileScheme.GetRandStr())
+	log.Printf("Deleting all files at %s", fileScheme.GetRandStr())
 	deleteTree((&fileScheme))
 }
 
@@ -227,7 +236,7 @@ func getDefMem(writer http.ResponseWriter, request *http.Request) {
 		var unlock int64 = 0
 		defer freeLock(lock, &unlock) //Make sure the lock is released even if error occur
 		mensj := partmem.GetDefParts(&partScheme)
-		fmt.Fprintf(writer, mensj)
+		fmt.Fprint(writer, mensj)
 	}
 }
 
@@ -248,7 +257,7 @@ func getActMem(writer http.ResponseWriter, request *http.Request) {
 		defer freeLock(lock, &unlock) //Make sure the lock is released even if error occur
 		dump := request.URL.Query().Get("dump")
 		mensj := partScheme.GetActParts(dump)
-		fmt.Fprintf(writer, mensj)
+		fmt.Fprint(writer, mensj)
 	}
 }
 
@@ -274,14 +283,14 @@ func getfreeDisk(dir string) (uint64, error) {
 
 //Create a single directory
 func createDir(dirname string) error {
-	err := os.Mkdir(dirname,0755)
+	err := os.Mkdir(dirname, 0755)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
 			fin, errin := os.Stat(dirname)
 			if errin == nil && fin.IsDir() { //Directory already exists, that's fine
 				return nil
-			} else {//Error creating directory
-				log.Printf("createDir(): Out error: %s; In error: %s", err,errin)
+			} else { //Error creating directory
+				log.Printf("createDir(): Out error: %s; In error: %s", err, errin)
 				return err
 			}
 		} else { //Error creating directory
@@ -293,15 +302,15 @@ func createDir(dirname string) error {
 
 //Creates the directory tree to store files
 func createTree(fc partdisk.FileCollection) error {
-	log.Printf("Creating base dir: %s",fc.GetRandStr())
+	log.Printf("Creating base dir: %s", fc.GetRandStr())
 	err := createDir(fc.GetRandStr())
 	if err != nil {
 		log.Printf("Error creating basedir: %s", fc.GetRandStr())
 		return err
-	} else {//Base dir created, create subdirs
-		for _,size := range fc.GetFileSizes() {
+	} else { //Base dir created, create subdirs
+		for _, size := range fc.GetFileSizes() {
 			subdir := fmt.Sprintf("%s/d-%d", fc.GetRandStr(), size)
-			log.Printf("\tcreateSubDirs(): creating %s\n",subdir)
+			log.Printf("\tcreateSubDirs(): creating %s\n", subdir)
 			err = createDir(subdir)
 			if err != nil {
 				log.Printf("Error creating subdir: %s", subdir)
@@ -317,7 +326,7 @@ func deleteTree(fc *partdisk.FileCollection) error {
 	log.Printf("Deleting directory tree: %s", fc.GetRandStr())
 	err := os.RemoveAll(fc.GetRandStr())
 	if err != nil {
-		log.Printf("deleteTree(): error deleting directory tree: %s.  Filecollection will be inconsistent",fc.GetRandStr())
+		log.Printf("deleteTree(): error deleting directory tree: %s.  Filecollection will be inconsistent", fc.GetRandStr())
 		return err
 	}
 	fc.NewfC(DATADIR)
@@ -388,7 +397,7 @@ func getDefFiles(writer http.ResponseWriter, request *http.Request) {
 		var unlock int64 = 0
 		defer freeLock(filelock, &unlock) //Make sure the lock is released even if error occur
 		mensj := partdisk.GetDefFiles(&fileScheme)
-		fmt.Fprintf(writer, mensj)
+		fmt.Fprint(writer, mensj)
 	}
 }
 
@@ -408,17 +417,17 @@ func getActFiles(writer http.ResponseWriter, request *http.Request) {
 		var unlock int64 = 0
 		defer freeLock(filelock, &unlock) //Make sure the lock is released even if error occur
 		mensj := fileScheme.GetActFiles()
-		fmt.Fprintf(writer, mensj)
+		fmt.Fprint(writer, mensj)
 	}
 }
 
 //Takes care of cleaning up when the application is terminated by a TERM or INT signal
 func gracefulShutdown(sigchan chan os.Signal) {
-	wait := <- sigchan
-	log.Printf("Signal received: %v",wait)
+	wait := <-sigchan
+	log.Printf("Signal received: %v", wait)
 	err := deleteTree(&fileScheme)
 	if err != nil {
-		log.Printf("Error shuting down: %s",err.Error())
+		log.Printf("Error shuting down: %s", err.Error())
 		os.Exit(1)
 	} else {
 		os.Exit(0)
@@ -456,9 +465,9 @@ func addLoad(writer http.ResponseWriter, request *http.Request) {
 			return
 		}
 		go cpuload.LoadUp(&cpuScheme, tstamp, sm, cpulock)
-		fmt.Fprintf(writer,"CPU load requested for %d seconds with id: %d\n",sm,tstamp)
+		fmt.Fprintf(writer, "CPU load requested for %d seconds with id: %d\n", sm, tstamp)
 	}
-}	
+}
 
 //Stops the CPU load if there is a request being run and the ID matches
 func stopLoad(writer http.ResponseWriter, request *http.Request) {
@@ -481,9 +490,9 @@ func stopLoad(writer http.ResponseWriter, request *http.Request) {
 			return
 		}
 		mensj := cpuload.StopLoad(cpuScheme, id)
-		fmt.Fprintf(writer, mensj)
+		fmt.Fprint(writer, mensj)
 	} else { //Lock available, nothing to do
-		defer freeLock(cpulock,&lval)
+		defer freeLock(cpulock, &lval)
 		fmt.Fprintf(writer, "No load request being processed, nothing to do\n")
 		time.Sleep(1 * time.Second)
 		return
@@ -496,15 +505,15 @@ func loadReqInfo(writer http.ResponseWriter, request *http.Request) {
 	if !islav { //Lock not available, there is a load request being served
 		start := cpuScheme.GetReqTime()
 		duration := cpuScheme.GetDuration()
-		reqt := fmt.Sprintf("Load request sent at: %v",start)
-		loadt := fmt.Sprintf("Load time requested: %d seconds",duration)
+		reqt := fmt.Sprintf("Load request sent at: %v", start)
+		loadt := fmt.Sprintf("Load time requested: %d seconds", duration)
 		end := start.Add(time.Second * time.Duration(duration))
 		loadend := fmt.Sprintf("Load request ends at: %v", end)
 		time.Sleep(1 * time.Second)
-		fmt.Fprintf(writer,"%s\n%s\n%s\nNumber to factor: %s\n",reqt,loadt,loadend,NUMTOFACTOR)
+		fmt.Fprintf(writer, "%s\n%s\n%s\nNumber to factor: %s\n", reqt, loadt, loadend, NUMTOFACTOR)
 	} else { //Lock available, nothing to do
-		defer freeLock(cpulock,&lval)
-		fmt.Fprintf(writer,"No load request in progress\n")
+		defer freeLock(cpulock, &lval)
+		fmt.Fprintf(writer, "No load request in progress\n")
 		time.Sleep(1 * time.Second)
 		return
 	}
