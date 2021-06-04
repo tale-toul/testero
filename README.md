@@ -26,7 +26,7 @@ Get the code from the git [repository](https://github.com/tale-toul/testero) and
 ```
 $ git clone https://github.com/tale-toul/testero
 $ cd testero
-$ go run testero.go
+$ go run .
 ...
 2021/04/04 12:14:04 Starting web server on: 0.0.0.0:8080
 ```
