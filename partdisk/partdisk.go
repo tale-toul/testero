@@ -282,17 +282,14 @@ func adrefiles(fS *FileCollection) error {
 
 //Creates a single file of the indicated size
 func newFile(filename string, size uint64) error {
-	const blength int = 1024
-	// There is no need to actually create an entire array, just declare it,
-	// it will be overwritten below
-	var burval []byte
-	var base [blength]byte
-	var counter, index uint64
-	var f *os.File
-	//Fill up the base array with random printable characters
+	const blength uint64 = 1024
+	burval := make([]byte, blength)
+	var f *os.File = nil
+
+	//Fill up the base array with random bytes
 	rand.Seed(time.Now().UnixNano())
-	for x := 0; x < len(base); x++ {
-		base[x] = byte(rand.Intn(95) + 32) //ASCII 32 to 126
+	for x := 0; x < len(burval); x++ {
+		burval[x] = byte(rand.Intn(225)) //Use binary data and get more randomness
 	}
 
 	// Defer must be called before you return, it ensures that, no matter what,
@@ -304,18 +301,19 @@ func newFile(filename string, size uint64) error {
 		return err
 	}
 
-	burval = base[:]
-	for i := uint64(0); i < size; i++ {
-		counter += i + uint64(base[i%uint64(blength)])
-		index = counter % uint64(len(base))
-		burval[i%uint64(len(base))] = base[index]
-		if i%uint64(blength) == 0 {
-			_, err = f.Write(burval)
-			if err != nil {
-				log.Printf("newFile(): Error writing to file: %s", filename)
-				return err
-			}
-			counter = uint64(rand.Intn(blength))
+	chunkcount := size / blength
+	for i := uint64(0); i < chunkcount; i++ {
+
+		rnd := uint8(rand.Intn(255))
+		// Change the data up a bit with a simple XOR
+		for j := 0; j < 1024; j++ {
+			burval[j] ^= rnd
+		}
+
+		_, err = f.Write(burval)
+		if err != nil {
+			log.Printf("newFile(): Error writing to file: %s", filename)
+			return err
 		}
 	}
 	return nil
